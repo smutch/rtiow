@@ -9,3 +9,4 @@ edition = "2021"
 image = "0.23"
 nalgebra-glm = "0.15"
 palette = { git = "https://github.com/Ogeon/palette.git" }
+indicatif = "0.16"
