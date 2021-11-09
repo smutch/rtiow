@@ -45,15 +45,15 @@ impl Camera {
 
 fn hit_sphere(centre: &Vec3, radius: f32, ray: &Vec3, origin: &Vec3) -> Option<f32> {
     let oc = origin - centre;
-    let a = ray.dot(ray);
-    let b = 2.0 * oc.dot(ray);
-    let c = oc.dot(&oc) - radius * radius;
-    let discriminant = b * b - 4.0 * a * c;
+    let a = ray.norm_squared();
+    let half_b = oc.dot(ray);
+    let c = oc.norm_squared() - radius * radius;
+    let discriminant = half_b * half_b - a * c;
 
     if discriminant < 0.0 {
         None
     } else {
-        Some((-b - discriminant.sqrt()) / (2.0 * a))
+        Some((-half_b - discriminant.sqrt()) / a)
     }
 }
 
