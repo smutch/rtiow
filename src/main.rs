@@ -3,14 +3,15 @@ use nalgebra_glm::{vec3, Vec3};
 use palette::Srgb;
 
 fn ray_color(r: &Vec3, origin: &Vec3) -> Srgb {
-    let components = match hit_sphere(&vec3(0.0, 0.0, -1.0), 0.5, r, origin) {
+    let sphere = Sphere::new(vec3(0.0, 0.0, -1.0), 0.5);
+    let components = match sphere.hit(r, origin, 0.0, 9999.9) {
         None => {
             let direction = r.normalize();
             let t = 0.5 * (direction.y + 1.0);
             (1.0 - t) * vec3(1.0, 1.0, 1.0) + t * vec3(0.5, 0.7, 1.0)
         }
-        Some(t) => {
-            let n = ((origin + r * t) - vec3(0.0, 0.0, -1.0)).normalize();
+        Some(hitrecord) => {
+            let n = hitrecord.normal;
             0.5 * vec3(n.x + 1.0, n.y + 1.0, n.z + 1.0)
         }
     };
@@ -43,19 +44,54 @@ impl Camera {
     }
 }
 
-fn hit_sphere(centre: &Vec3, radius: f32, ray: &Vec3, origin: &Vec3) -> Option<f32> {
-    let oc = origin - centre;
-    let a = ray.norm_squared();
-    let half_b = oc.dot(ray);
-    let c = oc.norm_squared() - radius * radius;
-    let discriminant = half_b * half_b - a * c;
+struct HitRecord {
+    p: Vec3,
+    normal: Vec3,
+    t: f32
+}
 
-    if discriminant < 0.0 {
-        None
-    } else {
-        Some((-half_b - discriminant.sqrt()) / a)
+trait Hittable {
+    fn hit(&self, ray: &Vec3, origin: &Vec3, t_min: f32, t_max: f32) -> Option<HitRecord>;
+}
+
+struct Sphere {
+    centre: Vec3,
+    radius: f32
+}
+impl Sphere {
+    fn new(centre: Vec3, radius: f32) -> Self {
+        Sphere{centre, radius}
     }
 }
+impl Hittable for Sphere {
+    fn hit(&self, ray: &Vec3, origin: &Vec3, t_min: f32, t_max: f32) -> Option<HitRecord> {
+        let oc = origin - self.centre;
+        let a = ray.norm_squared();
+        let half_b = oc.dot(ray);
+        let c = oc.norm_squared() - self.radius * self.radius;
+        let discriminant = half_b * half_b - a * c;
+
+        if discriminant < 0.0 {
+            return None;
+        }
+
+        // Find the nearest root that lies in an acceptible range (t_min < t < t_max)
+        let sqrtd = discriminant.sqrt();
+        let mut root = (-half_b - sqrtd) / a;
+        if root < t_min || t_max < root {
+            root = (-half_b + sqrtd) / a;
+            if root < t_min || t_max < root {
+                return None;
+            }
+        }
+
+        let t = root;
+        let p = origin + ray*t;
+        let normal = (p - self.centre).normalize();
+        Some(HitRecord{p, normal, t})
+    }
+} 
+
 
 fn main() -> Result<(), image::ImageError> {
     const ASPECT: f32 = 16.0 / 9.0;
