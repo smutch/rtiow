@@ -1,8 +1,9 @@
 #![allow(dead_code)]
+use std::slice::Iter;
+
 use indicatif::ProgressBar;
 use nalgebra_glm::{vec3, Vec3};
 use palette::Srgb;
-use std::ops::{Deref, DerefMut};
 
 struct Camera {
     origin: Vec3,
@@ -97,7 +98,10 @@ impl Hittable for Sphere {
 
 struct HitList(Vec<Box<dyn Hittable>>);
 
-impl Deref for HitList {
+// This is very cool, but we really only need to be able to iterate over and push to HitList. Good
+// trick to remember for future though!
+// use std::ops::{Deref, DerefMut};
+/* impl Deref for HitList {
     type Target = Vec<Box<dyn Hittable>>;
 
     fn deref(&self) -> &Self::Target {
@@ -108,12 +112,20 @@ impl DerefMut for HitList {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
-}
+} */
 
 
 impl HitList {
     fn new() -> Self {
         Self(vec![])
+    }
+
+    fn push(&mut self, object: Box<dyn Hittable>) {
+        self.0.push(object);
+    }
+
+    fn iter(&self) -> Iter<Box<dyn Hittable>> {
+        self.0.iter()
     }
 }
 
