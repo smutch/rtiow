@@ -2,6 +2,7 @@
 use indicatif::ProgressBar;
 use nalgebra_glm::{vec3, Vec3};
 use palette::Srgb;
+use std::ops::Deref;
 
 fn ray_color(r: &Vec3, origin: &Vec3) -> Srgb {
     let sphere = Sphere::new(vec3(0.0, 0.0, -1.0), 0.5);
@@ -49,15 +50,24 @@ struct HitRecord {
     pos: Vec3,
     normal: Vec3,
     t: f32,
-    front_face: bool
+    front_face: bool,
 }
- impl HitRecord {
+impl HitRecord {
     fn new(ray: &Vec3, pos: Vec3, outward_normal: Vec3, t: f32) -> Self {
         let front_face = ray.dot(&outward_normal) < 0.0;
-        let normal = if front_face { outward_normal } else { -outward_normal };
-        HitRecord { pos, normal, t, front_face }
+        let normal = if front_face {
+            outward_normal
+        } else {
+            -outward_normal
+        };
+        HitRecord {
+            pos,
+            normal,
+            t,
+            front_face,
+        }
     }
- }
+}
 
 trait Hittable {
     fn hit(&self, ray: &Vec3, origin: &Vec3, t_min: f32, t_max: f32) -> Option<HitRecord>;
@@ -99,7 +109,32 @@ impl Hittable for Sphere {
         let outward_normal = (pos - self.centre).normalize();
         Some(HitRecord::new(ray, pos, outward_normal, t))
     }
+}
 
+struct HitList<T: Hittable>(Vec<T>);
+
+impl<T: Hittable> Deref for HitList<T> {
+    type Target = Vec<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T: Hittable> Hittable for HitList<T> {
+    fn hit(&self, ray: &Vec3, origin: &Vec3, t_min: f32, t_max: f32) -> Option<HitRecord> {
+        let mut closest_t = t_max;
+        let mut closest_hitrecord: Option<HitRecord> = None;
+
+        for object in self.iter() {
+            if let Some(hitrecord) = object.hit(ray, origin, t_min, closest_t) {
+                closest_t = hitrecord.t;
+                closest_hitrecord = Some(hitrecord);
+            }
+        }
+
+        closest_hitrecord
+    }
 }
 
 fn main() -> Result<(), image::ImageError> {
