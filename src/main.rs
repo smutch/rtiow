@@ -96,7 +96,8 @@ impl Hittable for Sphere {
     }
 }
 
-struct HitList(Vec<Box<dyn Hittable>>);
+type HitListElement = Box<dyn Hittable>;
+struct HitList(Vec<HitListElement>);
 
 // This is very cool, but we really only need to be able to iterate over and push to HitList. Good
 // trick to remember for future though!
@@ -120,11 +121,11 @@ impl HitList {
         Self(vec![])
     }
 
-    fn push(&mut self, object: Box<dyn Hittable>) {
+    fn push(&mut self, object: HitListElement) {
         self.0.push(object);
     }
 
-    fn iter(&self) -> Iter<Box<dyn Hittable>> {
+    fn iter(&self) -> Iter<HitListElement> {
         self.0.iter()
     }
 }
