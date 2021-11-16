@@ -2,23 +2,7 @@
 use indicatif::ProgressBar;
 use nalgebra_glm::{vec3, Vec3};
 use palette::Srgb;
-use std::ops::Deref;
-
-fn ray_color(r: &Vec3, origin: &Vec3) -> Srgb {
-    let sphere = Sphere::new(vec3(0.0, 0.0, -1.0), 0.5);
-    let components = match sphere.hit(r, origin, 0.0, 9999.9) {
-        None => {
-            let direction = r.normalize();
-            let t = 0.5 * (direction.y + 1.0);
-            (1.0 - t) * vec3(1.0, 1.0, 1.0) + t * vec3(0.5, 0.7, 1.0)
-        }
-        Some(hitrecord) => {
-            let n = hitrecord.normal;
-            0.5 * vec3(n.x + 1.0, n.y + 1.0, n.z + 1.0)
-        }
-    };
-    Srgb::new(components[0], components[1], components[2])
-}
+use std::ops::{Deref, DerefMut};
 
 struct Camera {
     origin: Vec3,
@@ -111,17 +95,29 @@ impl Hittable for Sphere {
     }
 }
 
-struct HitList<T: Hittable>(Vec<T>);
+struct HitList(Vec<Box<dyn Hittable>>);
 
-impl<T: Hittable> Deref for HitList<T> {
-    type Target = Vec<T>;
+impl Deref for HitList {
+    type Target = Vec<Box<dyn Hittable>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
+impl DerefMut for HitList {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
-impl<T: Hittable> Hittable for HitList<T> {
+
+impl HitList {
+    fn new() -> Self {
+        Self(vec![])
+    }
+}
+
+impl Hittable for HitList {
     fn hit(&self, ray: &Vec3, origin: &Vec3, t_min: f32, t_max: f32) -> Option<HitRecord> {
         let mut closest_t = t_max;
         let mut closest_hitrecord: Option<HitRecord> = None;
@@ -137,10 +133,29 @@ impl<T: Hittable> Hittable for HitList<T> {
     }
 }
 
+fn ray_color(r: &Vec3, origin: &Vec3, world: &HitList) -> Srgb {
+    let components = match world.hit(r, origin, 0.0, 9999.9) {
+        None => {
+            let direction = r.normalize();
+            let t = 0.5 * (direction.y + 1.0);
+            (1.0 - t) * vec3(1.0, 1.0, 1.0) + t * vec3(0.5, 0.7, 1.0)
+        }
+        Some(hitrecord) => {
+            let n = hitrecord.normal;
+            0.5 * vec3(n.x + 1.0, n.y + 1.0, n.z + 1.0)
+        }
+    };
+    Srgb::new(components[0], components[1], components[2])
+}
+
 fn main() -> Result<(), image::ImageError> {
     const ASPECT: f32 = 16.0 / 9.0;
     const WIDTH: u32 = 400;
     const HEIGHT: u32 = (WIDTH as f32 / ASPECT) as u32;
+
+    let mut world = HitList::new();
+    world.push(Box::new(Sphere::new(vec3(0.0, 0.0, -1.0), 0.5)));
+    world.push(Box::new(Sphere::new(vec3(0.0, -100.5, -1.0), 100.0)));
 
     let camera = Camera::new(ASPECT);
     let mut framebuffer = image::RgbImage::new(WIDTH, HEIGHT);
@@ -152,7 +167,7 @@ fn main() -> Result<(), image::ImageError> {
             let v = jj as f32 / (HEIGHT - 1) as f32;
             let ray = camera.lower_left_corner + u * camera.horizontal + v * camera.vertical
                 - camera.origin;
-            let color = ray_color(&ray, &camera.origin).into_format().into();
+            let color = ray_color(&ray, &camera.origin, &world).into_format().into();
             framebuffer.put_pixel(ii, HEIGHT - jj - 1, image::Rgb(color));
         }
         pbar.inc(1);
