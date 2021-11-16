@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use indicatif::ProgressBar;
 use nalgebra_glm::{vec3, Vec3};
 use palette::Srgb;
@@ -45,10 +46,18 @@ impl Camera {
 }
 
 struct HitRecord {
-    p: Vec3,
+    pos: Vec3,
     normal: Vec3,
-    t: f32
+    t: f32,
+    front_face: bool
 }
+ impl HitRecord {
+    fn new(ray: &Vec3, pos: Vec3, outward_normal: Vec3, t: f32) -> Self {
+        let front_face = ray.dot(&outward_normal) < 0.0;
+        let normal = if front_face { outward_normal } else { -outward_normal };
+        HitRecord { pos, normal, t, front_face }
+    }
+ }
 
 trait Hittable {
     fn hit(&self, ray: &Vec3, origin: &Vec3, t_min: f32, t_max: f32) -> Option<HitRecord>;
@@ -56,11 +65,11 @@ trait Hittable {
 
 struct Sphere {
     centre: Vec3,
-    radius: f32
+    radius: f32,
 }
 impl Sphere {
     fn new(centre: Vec3, radius: f32) -> Self {
-        Sphere{centre, radius}
+        Sphere { centre, radius }
     }
 }
 impl Hittable for Sphere {
@@ -86,12 +95,12 @@ impl Hittable for Sphere {
         }
 
         let t = root;
-        let p = origin + ray*t;
-        let normal = (p - self.centre).normalize();
-        Some(HitRecord{p, normal, t})
+        let pos = origin + ray * t;
+        let outward_normal = (pos - self.centre).normalize();
+        Some(HitRecord::new(ray, pos, outward_normal, t))
     }
-} 
 
+}
 
 fn main() -> Result<(), image::ImageError> {
     const ASPECT: f32 = 16.0 / 9.0;
