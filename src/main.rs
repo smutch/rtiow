@@ -1,6 +1,8 @@
+#![allow(dead_code)]
 use indicatif::ProgressBar;
 use nalgebra_glm::{vec3, Vec3};
-use palette::Srgb;
+use palette::LinSrgb;
+use rand::Rng;
 
 mod hittable;
 use crate::hittable::*;
@@ -29,9 +31,13 @@ impl Camera {
             lower_left_corner,
         }
     }
+
+    fn get_ray(&self, u: f32, v: f32) -> Vec3 {
+        self.lower_left_corner + u*self.horizontal + v*self.vertical - self.origin
+    }
 }
 
-fn ray_color(r: &Vec3, origin: &Vec3, world: &HitList) -> Srgb {
+fn ray_color(r: &Vec3, origin: &Vec3, world: &HitList) -> LinSrgb {
     let components = match world.hit(r, origin, 0.0, 9999.9) {
         None => {
             let direction = r.normalize();
@@ -43,13 +49,14 @@ fn ray_color(r: &Vec3, origin: &Vec3, world: &HitList) -> Srgb {
             0.5 * vec3(n.x + 1.0, n.y + 1.0, n.z + 1.0)
         }
     };
-    Srgb::new(components[0], components[1], components[2])
+    LinSrgb::new(components[0], components[1], components[2])
 }
 
 fn main() -> Result<(), image::ImageError> {
     const ASPECT: f32 = 16.0 / 9.0;
     const WIDTH: u32 = 400;
     const HEIGHT: u32 = (WIDTH as f32 / ASPECT) as u32;
+    const SAMPLES: u32 = 100;
 
     let mut world = HitList::new();
     world.push(Box::new(Sphere::new(vec3(0.0, 0.0, -1.0), 0.5)));
@@ -58,15 +65,19 @@ fn main() -> Result<(), image::ImageError> {
     let camera = Camera::new(ASPECT);
     let mut framebuffer = image::RgbImage::new(WIDTH, HEIGHT);
 
+    let mut rng = rand::thread_rng();
     let pbar = ProgressBar::new(HEIGHT as u64);
     for jj in 0..HEIGHT {
         for ii in 0..WIDTH {
-            let u = ii as f32 / (WIDTH - 1) as f32;
-            let v = jj as f32 / (HEIGHT - 1) as f32;
-            let ray = camera.lower_left_corner + u * camera.horizontal + v * camera.vertical
-                - camera.origin;
-            let color = ray_color(&ray, &camera.origin, &world).into_format().into();
-            framebuffer.put_pixel(ii, HEIGHT - jj - 1, image::Rgb(color));
+            let mut pixel_color = LinSrgb::new(0.0, 0.0, 0.0);
+            for _ in 0..SAMPLES {
+                let u = (ii as f32 + rng.gen::<f32>()) / (WIDTH - 1) as f32;
+                let v = (jj as f32 + rng.gen::<f32>()) / (HEIGHT - 1) as f32;
+                let ray = camera.get_ray(u, v);
+                pixel_color += ray_color(&ray, &camera.origin, &world);
+            }
+            pixel_color /= SAMPLES as f32;
+            framebuffer.put_pixel(ii, HEIGHT - jj - 1, image::Rgb(pixel_color.into_format().into()));
         }
         pbar.inc(1);
     }

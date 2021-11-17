@@ -593,6 +593,7 @@ dependencies = [
  "indicatif",
  "nalgebra-glm",
  "palette",
+ "rand",
 ]
 
 [[package]]
