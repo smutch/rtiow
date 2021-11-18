@@ -3,7 +3,7 @@ use nalgebra_glm::Vec3;
 use std::slice::Iter;
 
 pub struct HitRecord {
-    pos: Vec3,
+    pub pos: Vec3,
     pub normal: Vec3,
     t: f32,
     front_face: bool,
