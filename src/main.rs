@@ -2,10 +2,18 @@
 use indicatif::ProgressBar;
 use nalgebra_glm::{vec3, Vec3};
 use palette::{LinSrgb, Srgb};
-use rand::{Rng, distributions::Uniform, prelude::{Distribution, ThreadRng}};
+use rand::{
+    distributions::Uniform,
+    prelude::{Distribution, ThreadRng},
+    Rng,
+};
 
 mod hittable;
+// mod materials;
+mod ray;
 use crate::hittable::*;
+// use crate::materials::*;
+use crate::ray::*;
 
 struct Camera {
     origin: Vec3,
@@ -32,35 +40,51 @@ impl Camera {
         }
     }
 
-    fn get_ray(&self, u: f32, v: f32) -> Vec3 {
-        self.lower_left_corner + u*self.horizontal + v*self.vertical - self.origin
+    fn get_ray(&self, u: f32, v: f32) -> Ray {
+        Ray{origin: self.origin, direction: self.lower_left_corner + u * self.horizontal + v * self.vertical - self.origin}
     }
 }
 
 fn random_unit_vector(rng: &mut ThreadRng) -> Vec3 {
     let distrib = Uniform::new(-1.0f32, 1.0f32);
     loop {
-        let p = vec3(distrib.sample(rng), distrib.sample(rng), distrib.sample(rng));
-        if p.norm_squared() >= 1.0 { continue; }
-        return p.normalize()
+        let p = vec3(
+            distrib.sample(rng),
+            distrib.sample(rng),
+            distrib.sample(rng),
+        );
+        if p.norm_squared() >= 1.0 {
+            continue;
+        }
+        return p.normalize();
     }
 }
 
-fn ray_color_components(r: &Vec3, origin: &Vec3, world: &HitList, depth: u32, rng: &mut ThreadRng) -> Vec3 {
-
+fn ray_color_components(
+    ray: &Ray,
+    world: &HitList,
+    depth: u32,
+    rng: &mut ThreadRng,
+) -> Vec3 {
     if depth == 0 {
-        return vec3(0f32, 0f32, 0f32)
+        return vec3(0f32, 0f32, 0f32);
     }
 
-    match world.hit(r, origin, 0.001, f32::INFINITY) {
+    match world.hit(ray, 0.001, f32::INFINITY) {
         None => {
-            let direction = r.normalize();
+            let direction = ray.normalize();
             let t = 0.5 * (direction.y + 1.0);
             (1.0 - t) * vec3(1.0, 1.0, 1.0) + t * vec3(0.5, 0.7, 1.0)
         }
         Some(hitrecord) => {
             let target = hitrecord.pos + hitrecord.normal + random_unit_vector(rng);
-            0.5 * ray_color_components(&(target - hitrecord.pos), &hitrecord.pos, world, depth-1, rng)
+            let new_ray = Ray{ origin: hitrecord.pos, direction: target - hitrecord.pos };
+            0.5 * ray_color_components(
+                &new_ray,
+                world,
+                depth - 1,
+                rng,
+            )
         }
     }
 }
@@ -88,11 +112,20 @@ fn main() -> Result<(), image::ImageError> {
                 let u = (ii as f32 + rng.gen::<f32>()) / (WIDTH - 1) as f32;
                 let v = (jj as f32 + rng.gen::<f32>()) / (HEIGHT - 1) as f32;
                 let ray = camera.get_ray(u, v);
-                let color_components = ray_color_components(&ray, &camera.origin, &world, MAXDEPTH, &mut rng);
-                pixel_color += LinSrgb::new(color_components[0], color_components[1], color_components[2]);
+                let color_components =
+                    ray_color_components(&ray, &world, MAXDEPTH, &mut rng);
+                pixel_color += LinSrgb::new(
+                    color_components[0],
+                    color_components[1],
+                    color_components[2],
+                );
             }
             pixel_color /= SAMPLES as f32;
-            framebuffer.put_pixel(ii, HEIGHT - jj - 1, image::Rgb(Srgb::from_linear(pixel_color).into_format().into()));
+            framebuffer.put_pixel(
+                ii,
+                HEIGHT - jj - 1,
+                image::Rgb(Srgb::from_linear(pixel_color).into_format().into()),
+            );
         }
         pbar.inc(1);
     }

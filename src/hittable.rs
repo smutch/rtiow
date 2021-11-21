@@ -2,6 +2,8 @@
 use nalgebra_glm::Vec3;
 use std::slice::Iter;
 
+use crate::ray::Ray;
+
 pub struct HitRecord {
     pub pos: Vec3,
     pub normal: Vec3,
@@ -9,8 +11,8 @@ pub struct HitRecord {
     front_face: bool,
 }
 impl HitRecord {
-    fn new(ray: &Vec3, pos: Vec3, outward_normal: Vec3, t: f32) -> Self {
-        let front_face = ray.dot(&outward_normal) < 0.0;
+    fn new(ray: &Ray, pos: Vec3, outward_normal: Vec3, t: f32) -> Self {
+        let front_face = ray.direction.dot(&outward_normal) < 0.0;
         let normal = if front_face {
             outward_normal
         } else {
@@ -26,7 +28,7 @@ impl HitRecord {
 }
 
 pub trait Hittable {
-    fn hit(&self, ray: &Vec3, origin: &Vec3, t_min: f32, t_max: f32) -> Option<HitRecord>;
+    fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord>;
 }
 
 pub struct Sphere {
@@ -39,10 +41,10 @@ impl Sphere {
     }
 }
 impl Hittable for Sphere {
-    fn hit(&self, ray: &Vec3, origin: &Vec3, t_min: f32, t_max: f32) -> Option<HitRecord> {
-        let oc = origin - self.centre;
+    fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
+        let oc = ray.origin - self.centre;
         let a = ray.norm_squared();
-        let half_b = oc.dot(ray);
+        let half_b = oc.dot(&ray.direction);
         let c = oc.norm_squared() - self.radius * self.radius;
         let discriminant = half_b * half_b - a * c;
 
@@ -61,7 +63,7 @@ impl Hittable for Sphere {
         }
 
         let t = root;
-        let pos = origin + ray * t;
+        let pos = ray.origin + ray.direction * t;
         let outward_normal = (pos - self.centre).normalize();
         Some(HitRecord::new(ray, pos, outward_normal, t))
     }
@@ -101,12 +103,12 @@ impl HitList {
 }
 
 impl Hittable for HitList {
-    fn hit(&self, ray: &Vec3, origin: &Vec3, t_min: f32, t_max: f32) -> Option<HitRecord> {
+    fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
         let mut closest_t = t_max;
         let mut closest_hitrecord: Option<HitRecord> = None;
 
         for object in self.iter() {
-            if let Some(hitrecord) = object.hit(ray, origin, t_min, closest_t) {
+            if let Some(hitrecord) = object.hit(ray, t_min, closest_t) {
                 closest_t = hitrecord.t;
                 closest_hitrecord = Some(hitrecord);
             }
