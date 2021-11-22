@@ -48,6 +48,7 @@ impl Camera {
 }
 
 fn ray_color(ray: &Ray, world: &HitList, depth: u32, rng: &mut ThreadRng) -> LinSrgb {
+    // TODO: Not currently using materials!
     if depth == 0 {
         return LinSrgb::new(0f32, 0f32, 0f32);
     }
@@ -59,10 +60,10 @@ fn ray_color(ray: &Ray, world: &HitList, depth: u32, rng: &mut ThreadRng) -> Lin
             LinSrgb::new(1.0, 1.0, 1.0) * (1.0 - t) + LinSrgb::new(0.5, 0.7, 1.0) * t
         }
         Some(hitrecord) => {
-            let target = hitrecord.pos + hitrecord.normal + random_unit_vector(rng);
+            let target = hitrecord.normal + random_unit_vector(rng);
             let new_ray = Ray {
                 origin: hitrecord.pos,
-                direction: target - hitrecord.pos,
+                direction: target,
             };
             ray_color(&new_ray, world, depth - 1, rng).mul(0.5)
         }
@@ -77,6 +78,11 @@ fn main() -> Result<(), image::ImageError> {
     const MAXDEPTH: u32 = 50;
 
     let mut world = HitList::new();
+
+    /*
+     * TODO: The way I have it, each object holds it's own material object.
+     *       Might be better to reuse materials?
+     */
     world.push(Box::new(Sphere::new(
         vec3(0.0, 0.0, -1.0),
         0.5,
