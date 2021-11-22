@@ -1,17 +1,15 @@
 #![allow(dead_code)]
+use std::ops::Mul;
+
 use indicatif::ProgressBar;
 use nalgebra_glm::{vec3, Vec3};
 use palette::{LinSrgb, Srgb};
-use rand::{
-    distributions::Uniform,
-    prelude::{Distribution, ThreadRng},
-    Rng,
-};
+use rand::{prelude::ThreadRng, Rng};
 
 mod hittable;
-// mod materials;
+mod materials;
 mod ray;
-use crate::hittable::*;
+use crate::{hittable::*, materials::Lambertian};
 // use crate::materials::*;
 use crate::ray::*;
 
@@ -41,50 +39,32 @@ impl Camera {
     }
 
     fn get_ray(&self, u: f32, v: f32) -> Ray {
-        Ray{origin: self.origin, direction: self.lower_left_corner + u * self.horizontal + v * self.vertical - self.origin}
-    }
-}
-
-fn random_unit_vector(rng: &mut ThreadRng) -> Vec3 {
-    let distrib = Uniform::new(-1.0f32, 1.0f32);
-    loop {
-        let p = vec3(
-            distrib.sample(rng),
-            distrib.sample(rng),
-            distrib.sample(rng),
-        );
-        if p.norm_squared() >= 1.0 {
-            continue;
+        Ray {
+            origin: self.origin,
+            direction: self.lower_left_corner + u * self.horizontal + v * self.vertical
+                - self.origin,
         }
-        return p.normalize();
     }
 }
 
-fn ray_color_components(
-    ray: &Ray,
-    world: &HitList,
-    depth: u32,
-    rng: &mut ThreadRng,
-) -> Vec3 {
+fn ray_color(ray: &Ray, world: &HitList, depth: u32, rng: &mut ThreadRng) -> LinSrgb {
     if depth == 0 {
-        return vec3(0f32, 0f32, 0f32);
+        return LinSrgb::new(0f32, 0f32, 0f32);
     }
 
     match world.hit(ray, 0.001, f32::INFINITY) {
         None => {
             let direction = ray.normalize();
             let t = 0.5 * (direction.y + 1.0);
-            (1.0 - t) * vec3(1.0, 1.0, 1.0) + t * vec3(0.5, 0.7, 1.0)
+            LinSrgb::new(1.0, 1.0, 1.0) * (1.0 - t) + LinSrgb::new(0.5, 0.7, 1.0) * t
         }
         Some(hitrecord) => {
             let target = hitrecord.pos + hitrecord.normal + random_unit_vector(rng);
-            let new_ray = Ray{ origin: hitrecord.pos, direction: target - hitrecord.pos };
-            0.5 * ray_color_components(
-                &new_ray,
-                world,
-                depth - 1,
-                rng,
-            )
+            let new_ray = Ray {
+                origin: hitrecord.pos,
+                direction: target - hitrecord.pos,
+            };
+            ray_color(&new_ray, world, depth - 1, rng).mul(0.5)
         }
     }
 }
@@ -97,8 +77,20 @@ fn main() -> Result<(), image::ImageError> {
     const MAXDEPTH: u32 = 50;
 
     let mut world = HitList::new();
-    world.push(Box::new(Sphere::new(vec3(0.0, 0.0, -1.0), 0.5)));
-    world.push(Box::new(Sphere::new(vec3(0.0, -100.5, -1.0), 100.0)));
+    world.push(Box::new(Sphere::new(
+        vec3(0.0, 0.0, -1.0),
+        0.5,
+        Box::new(Lambertian {
+            albedo: LinSrgb::new(0.5, 0.5, 0.5),
+        }),
+    )));
+    world.push(Box::new(Sphere::new(
+        vec3(0.0, -100.5, -1.0),
+        100.0,
+        Box::new(Lambertian {
+            albedo: LinSrgb::new(0.5, 0.5, 0.5),
+        }),
+    )));
 
     let camera = Camera::new(ASPECT);
     let mut framebuffer = image::RgbImage::new(WIDTH, HEIGHT);
@@ -112,13 +104,7 @@ fn main() -> Result<(), image::ImageError> {
                 let u = (ii as f32 + rng.gen::<f32>()) / (WIDTH - 1) as f32;
                 let v = (jj as f32 + rng.gen::<f32>()) / (HEIGHT - 1) as f32;
                 let ray = camera.get_ray(u, v);
-                let color_components =
-                    ray_color_components(&ray, &world, MAXDEPTH, &mut rng);
-                pixel_color += LinSrgb::new(
-                    color_components[0],
-                    color_components[1],
-                    color_components[2],
-                );
+                pixel_color += ray_color(&ray, &world, MAXDEPTH, &mut rng);
             }
             pixel_color /= SAMPLES as f32;
             framebuffer.put_pixel(
