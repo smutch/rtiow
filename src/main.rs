@@ -48,9 +48,8 @@ impl Camera {
 }
 
 fn ray_color(ray: &Ray, world: &HitList, depth: u32, rng: &mut ThreadRng) -> LinSrgb {
-    // TODO: Not currently using materials!
     if depth == 0 {
-        return LinSrgb::new(0f32, 0f32, 0f32);
+        return LinSrgb::new(0.0, 0.0, 0.0);
     }
 
     match world.hit(ray, 0.001, f32::INFINITY) {
@@ -59,14 +58,10 @@ fn ray_color(ray: &Ray, world: &HitList, depth: u32, rng: &mut ThreadRng) -> Lin
             let t = 0.5 * (direction.y + 1.0);
             LinSrgb::new(1.0, 1.0, 1.0) * (1.0 - t) + LinSrgb::new(0.5, 0.7, 1.0) * t
         }
-        Some(hitrecord) => {
-            let target = hitrecord.normal + random_unit_vector(rng);
-            let new_ray = Ray {
-                origin: hitrecord.pos,
-                direction: target,
-            };
-            ray_color(&new_ray, world, depth - 1, rng).mul(0.5)
-        }
+        Some(hitrecord) => match hitrecord.material.scatter(ray, &hitrecord, rng) {
+            Some(event) => ray_color(&event.ray, world, depth - 1, rng).mul(event.attenuation),
+            None => LinSrgb::new(0.0, 0.0, 0.0),
+        },
     }
 }
 

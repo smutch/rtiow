@@ -1,4 +1,3 @@
-use nalgebra_glm::Vec3;
 use palette::LinSrgb;
 use rand::prelude::ThreadRng;
 
@@ -10,10 +9,15 @@ use crate::{
 pub trait Material {
     fn scatter(
         &self,
-        ray_in: &Vec3,
+        ray_in: &Ray,
         hitrecord: &HitRecord,
         rng: &mut ThreadRng,
-    ) -> Option<(LinSrgb, Ray)>;
+    ) -> Option<ScatterEvent>;
+}
+
+pub struct ScatterEvent {
+    pub attenuation: LinSrgb,
+    pub ray: Ray,
 }
 
 pub struct Lambertian {
@@ -22,10 +26,10 @@ pub struct Lambertian {
 impl Material for Lambertian {
     fn scatter(
         &self,
-        _ray_in: &Vec3,
+        _ray_in: &Ray,
         hitrecord: &HitRecord,
         rng: &mut ThreadRng,
-    ) -> Option<(LinSrgb, Ray)> {
+    ) -> Option<ScatterEvent> {
         let mut scatter_direction = hitrecord.normal + random_unit_vector(rng);
 
         if is_near_zero(scatter_direction) {
@@ -37,6 +41,9 @@ impl Material for Lambertian {
             direction: scatter_direction,
         };
         let attenuation = self.albedo;
-        Some((attenuation, scattered))
+        Some(ScatterEvent {
+            attenuation,
+            ray: scattered,
+        })
     }
 }
