@@ -9,9 +9,9 @@ use rand::{prelude::ThreadRng, Rng};
 mod hittable;
 mod materials;
 mod ray;
-use crate::{hittable::*, materials::Lambertian};
-// use crate::materials::*;
+use crate::materials::Metal;
 use crate::ray::*;
+use crate::{hittable::*, materials::Lambertian};
 
 struct Camera {
     origin: Vec3,
@@ -81,7 +81,7 @@ fn main() -> Result<(), image::ImageError> {
     world.push(Box::new(Sphere::new(
         vec3(0.0, 0.0, -1.0),
         0.5,
-        Box::new(Lambertian {
+        Box::new(Metal {
             albedo: LinSrgb::new(0.5, 0.5, 0.5),
         }),
     )));

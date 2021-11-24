@@ -3,7 +3,7 @@ use rand::prelude::ThreadRng;
 
 use crate::{
     hittable::HitRecord,
-    ray::{is_near_zero, random_unit_vector, Ray},
+    ray::{is_near_zero, random_unit_vector, reflect, Ray},
 };
 
 pub trait Material {
@@ -45,5 +45,32 @@ impl Material for Lambertian {
             attenuation,
             ray: scattered,
         })
+    }
+}
+
+pub struct Metal {
+    pub albedo: LinSrgb,
+}
+impl Material for Metal {
+    fn scatter(
+        &self,
+        ray_in: &Ray,
+        hitrecord: &HitRecord,
+        _rng: &mut ThreadRng,
+    ) -> Option<ScatterEvent> {
+        let reflected = reflect(&ray_in.direction.normalize(), &hitrecord.normal);
+        let scattered = Ray {
+            origin: hitrecord.pos,
+            direction: reflected,
+        };
+        let attenuation = self.albedo;
+        if scattered.direction.dot(&hitrecord.normal) > 0.0 {
+            Some(ScatterEvent {
+                attenuation,
+                ray: scattered,
+            })
+        } else {
+            None
+        }
     }
 }

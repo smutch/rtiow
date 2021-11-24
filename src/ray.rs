@@ -42,3 +42,7 @@ pub fn is_near_zero(vec: Vec3) -> bool {
     const MIN: f32 = f32::MIN * 2.0;
     (vec[0].abs() < MIN) && (vec[1].abs() < MIN) && (vec[2].abs() < MIN)
 }
+
+pub fn reflect(vec: &Vec3, normal: &Vec3) -> Vec3 {
+    vec - 2.0 * vec.dot(normal) * normal
+}
