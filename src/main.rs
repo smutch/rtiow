@@ -79,17 +79,31 @@ fn main() -> Result<(), image::ImageError> {
      *       Might be better to reuse materials?
      */
     world.push(Box::new(Sphere::new(
-        vec3(0.0, 0.0, -1.0),
-        0.5,
-        Box::new(Metal {
-            albedo: LinSrgb::new(0.5, 0.5, 0.5),
-        }),
-    )));
-    world.push(Box::new(Sphere::new(
         vec3(0.0, -100.5, -1.0),
         100.0,
         Box::new(Lambertian {
-            albedo: LinSrgb::new(0.5, 0.5, 0.5),
+            albedo: LinSrgb::new(0.8, 0.8, 0.0),
+        }),
+    )));
+    world.push(Box::new(Sphere::new(
+        vec3(0.0, 0.0, -1.0),
+        0.5,
+        Box::new(Lambertian {
+            albedo: LinSrgb::new(0.7, 0.3, 0.3),
+        }),
+    )));
+    world.push(Box::new(Sphere::new(
+        vec3(-1.0, 0.0, -1.0),
+        0.5,
+        Box::new(Metal {
+            albedo: LinSrgb::new(0.8, 0.8, 0.8),
+        }),
+    )));
+    world.push(Box::new(Sphere::new(
+        vec3(1.0, 0.0, -1.0),
+        0.5,
+        Box::new(Metal {
+            albedo: LinSrgb::new(0.8, 0.6, 0.2),
         }),
     )));
 
