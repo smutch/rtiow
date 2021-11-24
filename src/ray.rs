@@ -23,7 +23,7 @@ impl Ray {
     }
 }
 
-pub fn random_unit_vector(rng: &mut ThreadRng) -> Vec3 {
+pub fn random_in_unit_sphere(rng: &mut ThreadRng) -> Vec3 {
     let distrib = Uniform::new(-1.0f32, 1.0f32);
     loop {
         let p = vec3(
@@ -34,8 +34,12 @@ pub fn random_unit_vector(rng: &mut ThreadRng) -> Vec3 {
         if p.norm_squared() >= 1.0 {
             continue;
         }
-        return p.normalize();
+        return p;
     }
+}
+
+pub fn random_unit_vector(rng: &mut ThreadRng) -> Vec3 {
+    random_in_unit_sphere(rng).normalize()
 }
 
 pub fn is_near_zero(vec: Vec3) -> bool {

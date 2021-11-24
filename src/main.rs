@@ -81,30 +81,22 @@ fn main() -> Result<(), image::ImageError> {
     world.push(Box::new(Sphere::new(
         vec3(0.0, -100.5, -1.0),
         100.0,
-        Box::new(Lambertian {
-            albedo: LinSrgb::new(0.8, 0.8, 0.0),
-        }),
+        Box::new(Lambertian::new(LinSrgb::new(0.8, 0.8, 0.0))),
     )));
     world.push(Box::new(Sphere::new(
         vec3(0.0, 0.0, -1.0),
         0.5,
-        Box::new(Lambertian {
-            albedo: LinSrgb::new(0.7, 0.3, 0.3),
-        }),
+        Box::new(Lambertian::new(LinSrgb::new(0.7, 0.3, 0.3))),
     )));
     world.push(Box::new(Sphere::new(
         vec3(-1.0, 0.0, -1.0),
         0.5,
-        Box::new(Metal {
-            albedo: LinSrgb::new(0.8, 0.8, 0.8),
-        }),
+        Box::new(Metal::new(LinSrgb::new(0.8, 0.8, 0.8), 0.3)),
     )));
     world.push(Box::new(Sphere::new(
         vec3(1.0, 0.0, -1.0),
         0.5,
-        Box::new(Metal {
-            albedo: LinSrgb::new(0.8, 0.6, 0.2),
-        }),
+        Box::new(Metal::new(LinSrgb::new(0.8, 0.6, 0.2), 1.0)),
     )));
 
     let camera = Camera::new(ASPECT);
