@@ -86,12 +86,12 @@ fn main() -> Result<(), image::ImageError> {
     world.push(Box::new(Sphere::new(
         vec3(0.0, 0.0, -1.0),
         0.5,
-        Material::new_lambertian(LinSrgb::new(0.7, 0.3, 0.3)),
+        Material::new_dialectric(1.5),
     )));
     world.push(Box::new(Sphere::new(
         vec3(-1.0, 0.0, -1.0),
         0.5,
-        Material::new_metal(LinSrgb::new(0.8, 0.8, 0.8), 0.3),
+        Material::new_dialectric(1.5),
     )));
     world.push(Box::new(Sphere::new(
         vec3(1.0, 0.0, -1.0),

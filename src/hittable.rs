@@ -9,11 +9,11 @@ pub struct HitRecord<'a> {
     pub normal: Vec3,
     t: f32,
     pub material: &'a Material,
-    front_face: bool,
+    pub front_face: bool,
 }
 impl<'b> HitRecord<'b> {
     fn new(ray: &Ray, pos: Vec3, outward_normal: Vec3, t: f32, material: &'b Material) -> Self {
-        let front_face = ray.direction.dot(&outward_normal) < 0.0;
+        let front_face = ray.direction.dot(&outward_normal) <= 0.0;
         let normal = if front_face {
             outward_normal
         } else {

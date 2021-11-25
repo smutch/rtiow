@@ -1,10 +1,7 @@
 use palette::LinSrgb;
 use rand::prelude::ThreadRng;
 
-use crate::{
-    hittable::HitRecord,
-    ray::{is_near_zero, random_in_unit_sphere, random_unit_vector, reflect, Ray},
-};
+use crate::{hittable::HitRecord, ray::*};
 
 pub struct ScatterEvent {
     pub attenuation: LinSrgb,
@@ -14,6 +11,7 @@ pub struct ScatterEvent {
 pub enum Material {
     Lambertian { albedo: LinSrgb },
     Metal { albedo: LinSrgb, fuzz: f32 },
+    Dialectric { refractive_index: f32 },
 }
 
 impl Material {
@@ -26,6 +24,10 @@ impl Material {
 
     pub fn new_lambertian(albedo: LinSrgb) -> Self {
         Self::Lambertian { albedo }
+    }
+
+    pub fn new_dialectric(refractive_index: f32) -> Self {
+        Self::Dialectric { refractive_index }
     }
 
     pub fn scatter(
@@ -52,6 +54,7 @@ impl Material {
                     ray: scattered,
                 })
             }
+
             Material::Metal { albedo, fuzz } => {
                 let reflected = reflect(&ray_in.direction.normalize(), &hitrecord.normal);
                 let scattered = Ray {
@@ -67,6 +70,24 @@ impl Material {
                 } else {
                     None
                 }
+            }
+
+            Material::Dialectric { refractive_index } => {
+                let attenuation = LinSrgb::new(1.0, 1.0, 1.0);
+                let refraction_ratio = if hitrecord.front_face {
+                    1.0 / *refractive_index
+                } else {
+                    *refractive_index
+                };
+                let unit_direciton = ray_in.direction.normalize();
+                let refracted = refract(&unit_direciton, &hitrecord.normal, refraction_ratio);
+                Some(ScatterEvent {
+                    attenuation,
+                    ray: Ray {
+                        origin: hitrecord.pos,
+                        direction: refracted,
+                    },
+                })
             }
         }
     }
