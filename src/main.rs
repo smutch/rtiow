@@ -9,9 +9,9 @@ use rand::{prelude::ThreadRng, Rng};
 mod hittable;
 mod materials;
 mod ray;
-use crate::materials::Metal;
+use crate::hittable::*;
+use crate::materials::Material;
 use crate::ray::*;
-use crate::{hittable::*, materials::Lambertian};
 
 struct Camera {
     origin: Vec3,
@@ -75,28 +75,28 @@ fn main() -> Result<(), image::ImageError> {
     let mut world = HitList::new();
 
     /*
-     * TODO: The way I have it, each object holds it's own material object.
+     * NOTE: The way I have it, each object holds it's own material object.
      *       Might be better to reuse materials?
      */
     world.push(Box::new(Sphere::new(
         vec3(0.0, -100.5, -1.0),
         100.0,
-        Box::new(Lambertian::new(LinSrgb::new(0.8, 0.8, 0.0))),
+        Material::new_lambertian(LinSrgb::new(0.8, 0.8, 0.0)),
     )));
     world.push(Box::new(Sphere::new(
         vec3(0.0, 0.0, -1.0),
         0.5,
-        Box::new(Lambertian::new(LinSrgb::new(0.7, 0.3, 0.3))),
+        Material::new_lambertian(LinSrgb::new(0.7, 0.3, 0.3)),
     )));
     world.push(Box::new(Sphere::new(
         vec3(-1.0, 0.0, -1.0),
         0.5,
-        Box::new(Metal::new(LinSrgb::new(0.8, 0.8, 0.8), 0.3)),
+        Material::new_metal(LinSrgb::new(0.8, 0.8, 0.8), 0.3),
     )));
     world.push(Box::new(Sphere::new(
         vec3(1.0, 0.0, -1.0),
         0.5,
-        Box::new(Metal::new(LinSrgb::new(0.8, 0.6, 0.2), 1.0)),
+        Material::new_metal(LinSrgb::new(0.8, 0.6, 0.2), 1.0),
     )));
 
     let camera = Camera::new(ASPECT);

@@ -8,11 +8,11 @@ pub struct HitRecord<'a> {
     pub pos: Vec3,
     pub normal: Vec3,
     t: f32,
-    pub material: &'a dyn Material,
+    pub material: &'a Material,
     front_face: bool,
 }
 impl<'b> HitRecord<'b> {
-    fn new(ray: &Ray, pos: Vec3, outward_normal: Vec3, t: f32, material: &'b dyn Material) -> Self {
+    fn new(ray: &Ray, pos: Vec3, outward_normal: Vec3, t: f32, material: &'b Material) -> Self {
         let front_face = ray.direction.dot(&outward_normal) < 0.0;
         let normal = if front_face {
             outward_normal
@@ -36,10 +36,10 @@ pub trait Hittable {
 pub struct Sphere {
     centre: Vec3,
     radius: f32,
-    material: Box<dyn Material>,
+    material: Material,
 }
 impl Sphere {
-    pub fn new(centre: Vec3, radius: f32, material: Box<dyn Material>) -> Self {
+    pub fn new(centre: Vec3, radius: f32, material: Material) -> Self {
         Sphere {
             centre,
             radius,
@@ -72,7 +72,7 @@ impl Hittable for Sphere {
         let t = root;
         let pos = ray.origin + ray.direction * t;
         let outward_normal = (pos - self.centre).normalize();
-        Some(HitRecord::new(ray, pos, outward_normal, t, &*self.material))
+        Some(HitRecord::new(ray, pos, outward_normal, t, &self.material))
     }
 }
 
