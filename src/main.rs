@@ -78,25 +78,33 @@ fn main() -> Result<(), image::ImageError> {
      * NOTE: The way I have it, each object holds it's own material object.
      *       Might be better to reuse materials?
      */
+
+    // ground
     world.push(Box::new(Sphere::new(
         vec3(0.0, -100.5, -1.0),
         100.0,
         Material::new_lambertian(LinSrgb::new(0.8, 0.8, 0.0)),
     )));
+
+    // centre
     world.push(Box::new(Sphere::new(
         vec3(0.0, 0.0, -1.0),
         0.5,
-        Material::new_dialectric(1.5),
+        Material::new_lambertian(LinSrgb::new(0.1, 0.2, 0.5)),
     )));
+
+    // left
     world.push(Box::new(Sphere::new(
         vec3(-1.0, 0.0, -1.0),
         0.5,
         Material::new_dialectric(1.5),
     )));
+
+    // right
     world.push(Box::new(Sphere::new(
         vec3(1.0, 0.0, -1.0),
         0.5,
-        Material::new_metal(LinSrgb::new(0.8, 0.6, 0.2), 1.0),
+        Material::new_metal(LinSrgb::new(0.8, 0.6, 0.2), 0.0),
     )));
 
     let camera = Camera::new(ASPECT);

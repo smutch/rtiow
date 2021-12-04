@@ -80,12 +80,21 @@ impl Material {
                     *refractive_index
                 };
                 let unit_direciton = ray_in.direction.normalize();
-                let refracted = refract(&unit_direciton, &hitrecord.normal, refraction_ratio);
+
+                let cos_theta = (-unit_direciton).dot(&hitrecord.normal).min(1.0);
+                let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
+
+                let direction = if refraction_ratio * sin_theta > 1.0 {
+                    reflect(&unit_direciton, &hitrecord.normal)
+                } else {
+                    refract(&unit_direciton, &hitrecord.normal, refraction_ratio)
+                };
+
                 Some(ScatterEvent {
                     attenuation,
                     ray: Ray {
                         origin: hitrecord.pos,
-                        direction: refracted,
+                        direction,
                     },
                 })
             }
