@@ -79,15 +79,15 @@ impl Material {
                 } else {
                     *refractive_index
                 };
-                let unit_direciton = ray_in.direction.normalize();
+                let unit_direction = ray_in.direction.normalize();
 
-                let cos_theta = (-unit_direciton).dot(&hitrecord.normal).min(1.0);
+                let cos_theta = (-unit_direction).dot(&hitrecord.normal).min(1.0);
                 let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
 
                 let direction = if refraction_ratio * sin_theta > 1.0 {
-                    reflect(&unit_direciton, &hitrecord.normal)
+                    reflect(&unit_direction, &hitrecord.normal)
                 } else {
-                    refract(&unit_direciton, &hitrecord.normal, refraction_ratio)
+                    refract(&unit_direction, &hitrecord.normal, refraction_ratio)
                 };
 
                 Some(ScatterEvent {
