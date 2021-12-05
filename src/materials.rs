@@ -1,5 +1,5 @@
 use palette::LinSrgb;
-use rand::prelude::ThreadRng;
+use rand::{prelude::ThreadRng, Rng};
 
 use crate::{hittable::HitRecord, ray::*};
 
@@ -84,7 +84,9 @@ impl Material {
                 let cos_theta = (-unit_direction).dot(&hitrecord.normal).min(1.0);
                 let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
 
-                let direction = if refraction_ratio * sin_theta > 1.0 {
+                let direction = if refraction_ratio * sin_theta > 1.0
+                    || reflectance(cos_theta, refraction_ratio) > rng.gen()
+                {
                     reflect(&unit_direction, &hitrecord.normal)
                 } else {
                     refract(&unit_direction, &hitrecord.normal, refraction_ratio)
@@ -100,4 +102,11 @@ impl Material {
             }
         }
     }
+}
+
+fn reflectance(cosine: f32, ref_idx: f32) -> f32 {
+    // Schlick's approximation (reflectivity of dielectric varying with incident angle)
+    let mut r0 = (1.0 - ref_idx) / (1.0 + ref_idx);
+    r0 = r0 * r0;
+    r0 + (1.0 - r0) * (1.0 - cosine).powf(5.0)
 }
