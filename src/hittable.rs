@@ -71,7 +71,7 @@ impl Hittable for Sphere {
 
         let t = root;
         let pos = ray.origin + ray.direction * t;
-        let outward_normal = (pos - self.centre).normalize();
+        let outward_normal = (pos - self.centre) / self.radius;
         Some(HitRecord::new(ray, pos, outward_normal, t, &self.material))
     }
 }

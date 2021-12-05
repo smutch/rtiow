@@ -100,6 +100,12 @@ fn main() -> Result<(), image::ImageError> {
         Material::new_dialectric(1.5),
     )));
 
+    world.push(Box::new(Sphere::new(
+        vec3(-1.0, 0.0, -1.0),
+        -0.4,
+        Material::new_dialectric(1.5),
+    )));
+
     // right
     world.push(Box::new(Sphere::new(
         vec3(1.0, 0.0, -1.0),
