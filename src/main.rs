@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use std::f32::consts::PI;
 use std::ops::Mul;
 
 use indicatif::ProgressBar;
@@ -21,8 +22,10 @@ struct Camera {
 }
 
 impl Camera {
-    fn new(aspect: f32) -> Self {
-        let viewport_height = 2.0;
+    fn new(fof: f32, aspect: f32) -> Self {
+        let theta = fof.to_radians();
+        let h = (theta * 0.5).tan();
+        let viewport_height = 2.0 * h;
         let viewport_width = aspect * viewport_height;
         let focal_length = 1.0;
         let origin = vec3(0.0, 0.0, 0.0);
@@ -67,6 +70,7 @@ fn ray_color(ray: &Ray, world: &HitList, depth: u32, rng: &mut ThreadRng) -> Lin
 
 fn main() -> Result<(), image::ImageError> {
     const ASPECT: f32 = 16.0 / 9.0;
+    const FOFDEGS: f32 = 90.0;
     const WIDTH: u32 = 400;
     const HEIGHT: u32 = (WIDTH as f32 / ASPECT) as u32;
     const SAMPLES: u32 = 100;
@@ -79,41 +83,56 @@ fn main() -> Result<(), image::ImageError> {
      *       Might be better to reuse materials?
      */
 
-    // ground
-    world.push(Box::new(Sphere::new(
-        vec3(0.0, -100.5, -1.0),
-        100.0,
-        Material::new_lambertian(LinSrgb::new(0.8, 0.8, 0.0)),
-    )));
+    // // ground
+    // world.push(Box::new(Sphere::new(
+    //     vec3(0.0, -100.5, -1.0),
+    //     100.0,
+    //     Material::new_lambertian(LinSrgb::new(0.8, 0.8, 0.0)),
+    // )));
+    //
+    // // centre
+    // world.push(Box::new(Sphere::new(
+    //     vec3(0.0, 0.0, -1.0),
+    //     0.5,
+    //     Material::new_lambertian(LinSrgb::new(0.1, 0.2, 0.5)),
+    // )));
+    //
+    // // left
+    // world.push(Box::new(Sphere::new(
+    //     vec3(-1.0, 0.0, -1.0),
+    //     0.5,
+    //     Material::new_dialectric(1.5),
+    // )));
+    //
+    // world.push(Box::new(Sphere::new(
+    //     vec3(-1.0, 0.0, -1.0),
+    //     -0.4,
+    //     Material::new_dialectric(1.5),
+    // )));
+    //
+    // // right
+    // world.push(Box::new(Sphere::new(
+    //     vec3(1.0, 0.0, -1.0),
+    //     0.5,
+    //     Material::new_metal(LinSrgb::new(0.8, 0.6, 0.2), 0.0),
+    // )));
 
-    // centre
-    world.push(Box::new(Sphere::new(
-        vec3(0.0, 0.0, -1.0),
-        0.5,
-        Material::new_lambertian(LinSrgb::new(0.1, 0.2, 0.5)),
-    )));
-
+    let r = (PI * 0.25).cos();
     // left
     world.push(Box::new(Sphere::new(
-        vec3(-1.0, 0.0, -1.0),
-        0.5,
-        Material::new_dialectric(1.5),
-    )));
-
-    world.push(Box::new(Sphere::new(
-        vec3(-1.0, 0.0, -1.0),
-        -0.4,
-        Material::new_dialectric(1.5),
+        vec3(-r, 0.0, -1.0),
+        r,
+        Material::new_lambertian(LinSrgb::new(0.0, 0.0, 1.0)),
     )));
 
     // right
     world.push(Box::new(Sphere::new(
-        vec3(1.0, 0.0, -1.0),
-        0.5,
-        Material::new_metal(LinSrgb::new(0.8, 0.6, 0.2), 0.0),
+        vec3(r, 0.0, -1.0),
+        r,
+        Material::new_lambertian(LinSrgb::new(1.0, 0.0, 0.0)),
     )));
 
-    let camera = Camera::new(ASPECT);
+    let camera = Camera::new(FOFDEGS, ASPECT);
     let mut framebuffer = image::RgbImage::new(WIDTH, HEIGHT);
 
     let mut rng = rand::thread_rng();
