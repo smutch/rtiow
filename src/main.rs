@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-use std::f32::consts::PI;
 use std::ops::Mul;
 
 use indicatif::ProgressBar;
@@ -22,17 +21,20 @@ struct Camera {
 }
 
 impl Camera {
-    fn new(fof: f32, aspect: f32) -> Self {
+    fn new(lookfrom: Vec3, lookat: Vec3, viewup: Vec3, fof: f32, aspect: f32) -> Self {
         let theta = fof.to_radians();
         let h = (theta * 0.5).tan();
         let viewport_height = 2.0 * h;
         let viewport_width = aspect * viewport_height;
-        let focal_length = 1.0;
-        let origin = vec3(0.0, 0.0, 0.0);
-        let horizontal = vec3(viewport_width, 0.0, 0.0);
-        let vertical = vec3(0.0, viewport_height, 0.0);
-        let lower_left_corner =
-            origin - horizontal * 0.5 - vertical * 0.5 - vec3(0.0, 0.0, focal_length);
+
+        let w = (lookfrom - lookat).normalize();
+        let u = viewup.cross(&w).normalize();
+        let v = w.cross(&u);
+
+        let origin = lookfrom;
+        let horizontal = viewport_width * u;
+        let vertical = viewport_height * v;
+        let lower_left_corner = origin - horizontal * 0.5 - vertical * 0.5 - w;
         Self {
             origin,
             horizontal,
@@ -41,10 +43,10 @@ impl Camera {
         }
     }
 
-    fn get_ray(&self, u: f32, v: f32) -> Ray {
+    fn get_ray(&self, s: f32, t: f32) -> Ray {
         Ray {
             origin: self.origin,
-            direction: self.lower_left_corner + u * self.horizontal + v * self.vertical
+            direction: self.lower_left_corner + s * self.horizontal + t * self.vertical
                 - self.origin,
         }
     }
@@ -70,11 +72,14 @@ fn ray_color(ray: &Ray, world: &HitList, depth: u32, rng: &mut ThreadRng) -> Lin
 
 fn main() -> Result<(), image::ImageError> {
     const ASPECT: f32 = 16.0 / 9.0;
-    const FOFDEGS: f32 = 90.0;
+    const FOFDEGS: f32 = 20.0;
     const WIDTH: u32 = 400;
     const HEIGHT: u32 = (WIDTH as f32 / ASPECT) as u32;
     const SAMPLES: u32 = 100;
     const MAXDEPTH: u32 = 50;
+    const LOOKFROM: Vec3 = Vec3::new(-2., 2., 1.);
+    const LOOKAT: Vec3 = Vec3::new(0., 0., -1.);
+    const VIEWUP: Vec3 = Vec3::new(0., 1., 0.);
 
     let mut world = HitList::new();
 
@@ -83,56 +88,41 @@ fn main() -> Result<(), image::ImageError> {
      *       Might be better to reuse materials?
      */
 
-    // // ground
-    // world.push(Box::new(Sphere::new(
-    //     vec3(0.0, -100.5, -1.0),
-    //     100.0,
-    //     Material::new_lambertian(LinSrgb::new(0.8, 0.8, 0.0)),
-    // )));
-    //
-    // // centre
-    // world.push(Box::new(Sphere::new(
-    //     vec3(0.0, 0.0, -1.0),
-    //     0.5,
-    //     Material::new_lambertian(LinSrgb::new(0.1, 0.2, 0.5)),
-    // )));
-    //
-    // // left
-    // world.push(Box::new(Sphere::new(
-    //     vec3(-1.0, 0.0, -1.0),
-    //     0.5,
-    //     Material::new_dialectric(1.5),
-    // )));
-    //
-    // world.push(Box::new(Sphere::new(
-    //     vec3(-1.0, 0.0, -1.0),
-    //     -0.4,
-    //     Material::new_dialectric(1.5),
-    // )));
-    //
-    // // right
-    // world.push(Box::new(Sphere::new(
-    //     vec3(1.0, 0.0, -1.0),
-    //     0.5,
-    //     Material::new_metal(LinSrgb::new(0.8, 0.6, 0.2), 0.0),
-    // )));
+    // ground
+    world.push(Box::new(Sphere::new(
+        vec3(0.0, -100.5, -1.0),
+        100.0,
+        Material::new_lambertian(LinSrgb::new(0.8, 0.8, 0.0)),
+    )));
 
-    let r = (PI * 0.25).cos();
+    // centre
+    world.push(Box::new(Sphere::new(
+        vec3(0.0, 0.0, -1.0),
+        0.5,
+        Material::new_lambertian(LinSrgb::new(0.1, 0.2, 0.5)),
+    )));
+
     // left
     world.push(Box::new(Sphere::new(
-        vec3(-r, 0.0, -1.0),
-        r,
-        Material::new_lambertian(LinSrgb::new(0.0, 0.0, 1.0)),
+        vec3(-1.0, 0.0, -1.0),
+        0.5,
+        Material::new_dialectric(1.5),
+    )));
+
+    world.push(Box::new(Sphere::new(
+        vec3(-1.0, 0.0, -1.0),
+        -0.4,
+        Material::new_dialectric(1.5),
     )));
 
     // right
     world.push(Box::new(Sphere::new(
-        vec3(r, 0.0, -1.0),
-        r,
-        Material::new_lambertian(LinSrgb::new(1.0, 0.0, 0.0)),
+        vec3(1.0, 0.0, -1.0),
+        0.5,
+        Material::new_metal(LinSrgb::new(0.8, 0.6, 0.2), 0.0),
     )));
 
-    let camera = Camera::new(FOFDEGS, ASPECT);
+    let camera = Camera::new(LOOKFROM, LOOKAT, VIEWUP, FOFDEGS, ASPECT);
     let mut framebuffer = image::RgbImage::new(WIDTH, HEIGHT);
 
     let mut rng = rand::thread_rng();
