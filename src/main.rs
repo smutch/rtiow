@@ -4,6 +4,8 @@ use std::ops::Mul;
 use indicatif::ProgressBar;
 use nalgebra_glm::{vec3, Vec3};
 use palette::{LinSrgb, Srgb};
+use rand::distributions::Uniform;
+use rand::prelude::Distribution;
 use rand::{prelude::ThreadRng, Rng};
 
 mod hittable;
@@ -32,6 +34,7 @@ impl Camera {
         fof: f32,
         aspect: f32,
         aperture: f32,
+        focus_dist: f32,
     ) -> Self {
         let theta = fof.to_radians();
         let h = (theta * 0.5).tan();
@@ -43,7 +46,6 @@ impl Camera {
         let v = w.cross(&u);
 
         let origin = lookfrom;
-        let focus_dist = (lookfrom - lookat).norm();
         let horizontal = focus_dist * viewport_width * u;
         let vertical = focus_dist * viewport_height * v;
         let lower_left_corner = origin - horizontal * 0.5 - vertical * 0.5 - focus_dist * w;
@@ -94,22 +96,24 @@ fn ray_color(ray: &Ray, world: &HitList, depth: u32, rng: &mut ThreadRng) -> Lin
 
 fn main() -> Result<(), image::ImageError> {
     // image settings
-    const ASPECT: f32 = 16.0 / 9.0;
-    const WIDTH: u32 = 400;
+    const ASPECT: f32 = 3.0 / 2.0;
+    const WIDTH: u32 = 1200;
     const HEIGHT: u32 = (WIDTH as f32 / ASPECT) as u32;
 
     // camera settings
     const FOFDEGS: f32 = 20.0;
-    const LOOKFROM: Vec3 = Vec3::new(3., 3., 2.);
-    const LOOKAT: Vec3 = Vec3::new(0., 0., -1.);
+    const LOOKFROM: Vec3 = Vec3::new(13., 2., 3.);
+    const LOOKAT: Vec3 = Vec3::new(0., 0., 0.);
     const VIEWUP: Vec3 = Vec3::new(0., 1., 0.);
-    const APERTURE: f32 = 2.0;
+    const APERTURE: f32 = 0.1;
+    const FOCUS_DIST: f32 = 10.0;
 
     // render settings
-    const SAMPLES: u32 = 100;
+    const SAMPLES: u32 = 500;
     const MAXDEPTH: u32 = 50;
 
     let mut world = HitList::new();
+    let mut rng = rand::thread_rng();
 
     /*
      * NOTE: The way I have it, each object holds it's own material object.
@@ -118,42 +122,88 @@ fn main() -> Result<(), image::ImageError> {
 
     // ground
     world.push(Box::new(Sphere::new(
-        vec3(0.0, -100.5, -1.0),
-        100.0,
-        Material::new_lambertian(LinSrgb::new(0.8, 0.8, 0.0)),
+        vec3(0.0, -1000., 0.0),
+        1000.0,
+        Material::new_lambertian(LinSrgb::new(0.5, 0.5, 0.5)),
     )));
 
-    // centre
-    world.push(Box::new(Sphere::new(
-        vec3(0.0, 0.0, -1.0),
-        0.5,
-        Material::new_lambertian(LinSrgb::new(0.1, 0.2, 0.5)),
-    )));
+    let distrib = Uniform::new(0f32, 1f32);
 
-    // left
+    for a in -11..11 {
+        for b in -11..11 {
+            let choose_mat = distrib.sample(&mut rng);
+            let center = vec3(
+                a as f32 + 0.9 * distrib.sample(&mut rng),
+                0.2,
+                b as f32 + 0.9 * distrib.sample(&mut rng),
+            );
+
+            if (center - vec3(4.0, 0.2, 0.0)).norm() > 0.9 {
+                if choose_mat < 0.8 {
+                    // diffuse
+                    let albedo = LinSrgb::new(
+                        distrib.sample(&mut rng),
+                        distrib.sample(&mut rng),
+                        distrib.sample(&mut rng),
+                    ) * LinSrgb::new(
+                        distrib.sample(&mut rng),
+                        distrib.sample(&mut rng),
+                        distrib.sample(&mut rng),
+                    );
+                    world.push(Box::new(Sphere::new(
+                        center,
+                        0.2,
+                        Material::new_lambertian(albedo),
+                    )));
+                } else if choose_mat < 0.95 {
+                    // metal
+                    let distrib = Uniform::new(0.5f32, 1f32);
+                    let albedo = LinSrgb::new(
+                        distrib.sample(&mut rng),
+                        distrib.sample(&mut rng),
+                        distrib.sample(&mut rng),
+                    );
+                    let fuzz = distrib.sample(&mut rng);
+                    world.push(Box::new(Sphere::new(
+                        center,
+                        0.2,
+                        Material::new_metal(albedo, fuzz),
+                    )));
+                } else {
+                    // glass
+                    world.push(Box::new(Sphere::new(
+                        center,
+                        0.2,
+                        Material::new_dialectric(1.5),
+                    )));
+                }
+            }
+        }
+    }
+
     world.push(Box::new(Sphere::new(
-        vec3(-1.0, 0.0, -1.0),
-        0.5,
+        vec3(0., 1., 0.),
+        1.0,
         Material::new_dialectric(1.5),
     )));
 
     world.push(Box::new(Sphere::new(
-        vec3(-1.0, 0.0, -1.0),
-        -0.4,
-        Material::new_dialectric(1.5),
+        vec3(-4., 1., 0.),
+        1.0,
+        Material::new_lambertian(LinSrgb::new(0.4, 0.2, 0.1)),
     )));
 
-    // right
     world.push(Box::new(Sphere::new(
-        vec3(1.0, 0.0, -1.0),
-        0.5,
-        Material::new_metal(LinSrgb::new(0.8, 0.6, 0.2), 0.0),
+        vec3(4., 1., 0.),
+        1.0,
+        Material::new_metal(LinSrgb::new(0.7, 0.6, 0.5), 0.0),
     )));
 
-    let camera = Camera::new(LOOKFROM, LOOKAT, VIEWUP, FOFDEGS, ASPECT, APERTURE);
+    let camera = Camera::new(
+        LOOKFROM, LOOKAT, VIEWUP, FOFDEGS, ASPECT, APERTURE, FOCUS_DIST,
+    );
     let mut framebuffer = image::RgbImage::new(WIDTH, HEIGHT);
 
-    let mut rng = rand::thread_rng();
     let pbar = ProgressBar::new(HEIGHT as u64);
     for jj in 0..HEIGHT {
         for ii in 0..WIDTH {
