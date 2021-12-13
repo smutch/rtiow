@@ -18,10 +18,21 @@ struct Camera {
     horizontal: Vec3,
     vertical: Vec3,
     lower_left_corner: Vec3,
+    u: Vec3,
+    v: Vec3,
+    w: Vec3,
+    lens_radius: f32,
 }
 
 impl Camera {
-    fn new(lookfrom: Vec3, lookat: Vec3, viewup: Vec3, fof: f32, aspect: f32) -> Self {
+    fn new(
+        lookfrom: Vec3,
+        lookat: Vec3,
+        viewup: Vec3,
+        fof: f32,
+        aspect: f32,
+        aperture: f32,
+    ) -> Self {
         let theta = fof.to_radians();
         let h = (theta * 0.5).tan();
         let viewport_height = 2.0 * h;
@@ -32,22 +43,33 @@ impl Camera {
         let v = w.cross(&u);
 
         let origin = lookfrom;
-        let horizontal = viewport_width * u;
-        let vertical = viewport_height * v;
-        let lower_left_corner = origin - horizontal * 0.5 - vertical * 0.5 - w;
+        let focus_dist = (lookfrom - lookat).norm();
+        let horizontal = focus_dist * viewport_width * u;
+        let vertical = focus_dist * viewport_height * v;
+        let lower_left_corner = origin - horizontal * 0.5 - vertical * 0.5 - focus_dist * w;
+
+        let lens_radius = aperture * 0.5;
+
         Self {
             origin,
             horizontal,
             vertical,
             lower_left_corner,
+            u,
+            v,
+            w,
+            lens_radius,
         }
     }
 
-    fn get_ray(&self, s: f32, t: f32) -> Ray {
+    fn get_ray(&self, s: f32, t: f32, rng: &mut ThreadRng) -> Ray {
+        let random_offset = self.lens_radius * random_in_unit_disk(rng);
+        let transformed_offset = self.u * random_offset.x + self.v * random_offset.y;
         Ray {
-            origin: self.origin,
+            origin: self.origin + transformed_offset,
             direction: self.lower_left_corner + s * self.horizontal + t * self.vertical
-                - self.origin,
+                - self.origin
+                - transformed_offset,
         }
     }
 }
@@ -71,15 +93,21 @@ fn ray_color(ray: &Ray, world: &HitList, depth: u32, rng: &mut ThreadRng) -> Lin
 }
 
 fn main() -> Result<(), image::ImageError> {
+    // image settings
     const ASPECT: f32 = 16.0 / 9.0;
-    const FOFDEGS: f32 = 20.0;
     const WIDTH: u32 = 400;
     const HEIGHT: u32 = (WIDTH as f32 / ASPECT) as u32;
-    const SAMPLES: u32 = 100;
-    const MAXDEPTH: u32 = 50;
-    const LOOKFROM: Vec3 = Vec3::new(-2., 2., 1.);
+
+    // camera settings
+    const FOFDEGS: f32 = 20.0;
+    const LOOKFROM: Vec3 = Vec3::new(3., 3., 2.);
     const LOOKAT: Vec3 = Vec3::new(0., 0., -1.);
     const VIEWUP: Vec3 = Vec3::new(0., 1., 0.);
+    const APERTURE: f32 = 2.0;
+
+    // render settings
+    const SAMPLES: u32 = 100;
+    const MAXDEPTH: u32 = 50;
 
     let mut world = HitList::new();
 
@@ -122,7 +150,7 @@ fn main() -> Result<(), image::ImageError> {
         Material::new_metal(LinSrgb::new(0.8, 0.6, 0.2), 0.0),
     )));
 
-    let camera = Camera::new(LOOKFROM, LOOKAT, VIEWUP, FOFDEGS, ASPECT);
+    let camera = Camera::new(LOOKFROM, LOOKAT, VIEWUP, FOFDEGS, ASPECT, APERTURE);
     let mut framebuffer = image::RgbImage::new(WIDTH, HEIGHT);
 
     let mut rng = rand::thread_rng();
@@ -133,7 +161,7 @@ fn main() -> Result<(), image::ImageError> {
             for _ in 0..SAMPLES {
                 let u = (ii as f32 + rng.gen::<f32>()) / (WIDTH - 1) as f32;
                 let v = (jj as f32 + rng.gen::<f32>()) / (HEIGHT - 1) as f32;
-                let ray = camera.get_ray(u, v);
+                let ray = camera.get_ray(u, v, &mut rng);
                 pixel_color += ray_color(&ray, &world, MAXDEPTH, &mut rng);
             }
             pixel_color /= SAMPLES as f32;
