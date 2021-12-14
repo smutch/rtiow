@@ -40,7 +40,7 @@ impl Material {
             Material::Lambertian { albedo } => {
                 let mut scatter_direction = hitrecord.normal + random_unit_vector(rng);
 
-                if is_near_zero(scatter_direction) {
+                if scatter_direction.is_near_zero() {
                     scatter_direction = hitrecord.normal
                 };
 

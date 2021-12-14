@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use nalgebra_glm::Vec3;
+use crate::vec3::*;
 use std::slice::Iter;
 
 use crate::{materials::Material, ray::Ray};

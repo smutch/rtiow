@@ -1,8 +1,6 @@
 #![allow(dead_code)]
-use std::ops::Mul;
 
 use indicatif::ProgressBar;
-use nalgebra_glm::{vec3, Vec3};
 use palette::{LinSrgb, Srgb};
 use rand::distributions::Uniform;
 use rand::prelude::Distribution;
@@ -11,9 +9,11 @@ use rand::{prelude::ThreadRng, Rng};
 mod hittable;
 mod materials;
 mod ray;
+mod vec3;
 use crate::hittable::*;
 use crate::materials::Material;
 use crate::ray::*;
+use crate::vec3::*;
 
 struct Camera {
     origin: Vec3,
@@ -66,7 +66,7 @@ impl Camera {
 
     fn get_ray(&self, s: f32, t: f32, rng: &mut ThreadRng) -> Ray {
         let random_offset = self.lens_radius * random_in_unit_disk(rng);
-        let transformed_offset = self.u * random_offset.x + self.v * random_offset.y;
+        let transformed_offset = self.u * random_offset.0 + self.v * random_offset.1;
         Ray {
             origin: self.origin + transformed_offset,
             direction: self.lower_left_corner + s * self.horizontal + t * self.vertical
@@ -84,11 +84,11 @@ fn ray_color(ray: &Ray, world: &HitList, depth: u32, rng: &mut ThreadRng) -> Lin
     match world.hit(ray, 0.001, f32::INFINITY) {
         None => {
             let direction = ray.normalize();
-            let t = 0.5 * (direction.y + 1.0);
+            let t = 0.5 * (direction.1 + 1.0);
             LinSrgb::new(1.0, 1.0, 1.0) * (1.0 - t) + LinSrgb::new(0.5, 0.7, 1.0) * t
         }
         Some(hitrecord) => match hitrecord.material.scatter(ray, &hitrecord, rng) {
-            Some(event) => ray_color(&event.ray, world, depth - 1, rng).mul(event.attenuation),
+            Some(event) => ray_color(&event.ray, world, depth - 1, rng) * event.attenuation,
             None => LinSrgb::new(0.0, 0.0, 0.0),
         },
     }
@@ -102,9 +102,9 @@ fn main() -> Result<(), image::ImageError> {
 
     // camera settings
     const FOFDEGS: f32 = 20.0;
-    const LOOKFROM: Vec3 = Vec3::new(13., 2., 3.);
-    const LOOKAT: Vec3 = Vec3::new(0., 0., 0.);
-    const VIEWUP: Vec3 = Vec3::new(0., 1., 0.);
+    const LOOKFROM: Vec3 = Vec3(13., 2., 3.);
+    const LOOKAT: Vec3 = Vec3(0., 0., 0.);
+    const VIEWUP: Vec3 = Vec3(0., 1., 0.);
     const APERTURE: f32 = 0.1;
     const FOCUS_DIST: f32 = 10.0;
 
@@ -122,7 +122,7 @@ fn main() -> Result<(), image::ImageError> {
 
     // ground
     world.push(Box::new(Sphere::new(
-        vec3(0.0, -1000., 0.0),
+        Vec3(0.0, -1000., 0.0),
         1000.0,
         Material::new_lambertian(LinSrgb::new(0.5, 0.5, 0.5)),
     )));
@@ -132,13 +132,13 @@ fn main() -> Result<(), image::ImageError> {
     for a in -11..11 {
         for b in -11..11 {
             let choose_mat = distrib.sample(&mut rng);
-            let center = vec3(
+            let center = Vec3(
                 a as f32 + 0.9 * distrib.sample(&mut rng),
                 0.2,
                 b as f32 + 0.9 * distrib.sample(&mut rng),
             );
 
-            if (center - vec3(4.0, 0.2, 0.0)).norm() > 0.9 {
+            if (center - Vec3(4.0, 0.2, 0.0)).norm() > 0.9 {
                 if choose_mat < 0.8 {
                     // diffuse
                     let albedo = LinSrgb::new(
@@ -182,19 +182,19 @@ fn main() -> Result<(), image::ImageError> {
     }
 
     world.push(Box::new(Sphere::new(
-        vec3(0., 1., 0.),
+        Vec3(0., 1., 0.),
         1.0,
         Material::new_dialectric(1.5),
     )));
 
     world.push(Box::new(Sphere::new(
-        vec3(-4., 1., 0.),
+        Vec3(-4., 1., 0.),
         1.0,
         Material::new_lambertian(LinSrgb::new(0.4, 0.2, 0.1)),
     )));
 
     world.push(Box::new(Sphere::new(
-        vec3(4., 1., 0.),
+        Vec3(4., 1., 0.),
         1.0,
         Material::new_metal(LinSrgb::new(0.7, 0.6, 0.5), 0.0),
     )));
