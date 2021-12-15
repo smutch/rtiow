@@ -8,6 +8,7 @@ pub struct ScatterEvent {
     pub ray: Ray,
 }
 
+#[derive(Clone, Copy)]
 pub enum Material {
     Lambertian { albedo: LinSrgb },
     Metal { albedo: LinSrgb, fuzz: f32 },

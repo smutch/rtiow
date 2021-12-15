@@ -11,3 +11,4 @@ nalgebra-glm = "0.15"
 palette = { git = "https://github.com/Ogeon/palette.git" }
 indicatif = "0.16"
 rand = "0.8"
+rayon = "1.5.1"

@@ -29,10 +29,30 @@ impl<'b> HitRecord<'b> {
     }
 }
 
-pub trait Hittable {
+pub trait Hittable: HittableClone + Send {
     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord>;
 }
 
+pub trait HittableClone {
+    fn clone_box(&self) -> Box<dyn Hittable>;
+}
+
+impl<T: 'static> HittableClone for T
+where
+    T: Hittable + Clone,
+{
+    fn clone_box(&self) -> Box<dyn Hittable + 'static> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn Hittable> {
+    fn clone(&self) -> Box<dyn Hittable + 'static> {
+        self.clone_box()
+    }
+}
+
+#[derive(Clone, Copy)]
 pub struct Sphere {
     centre: Vec3,
     radius: f32,
@@ -77,6 +97,8 @@ impl Hittable for Sphere {
 }
 
 type HitListElement = Box<dyn Hittable>;
+
+#[derive(Clone)]
 pub struct HitList(Vec<HitListElement>);
 
 // This is very cool, but we really only need to be able to iterate over and push to HitList. Good

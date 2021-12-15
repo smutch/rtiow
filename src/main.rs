@@ -1,12 +1,14 @@
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 use std::ops::Mul;
+use std::thread;
 
-use indicatif::ProgressBar;
+use indicatif::{MultiProgress, ProgressBar};
 use nalgebra_glm::{vec3, Vec3};
 use palette::{LinSrgb, Srgb};
 use rand::distributions::Uniform;
 use rand::prelude::Distribution;
 use rand::{prelude::ThreadRng, Rng};
+use rayon::prelude::*;
 
 mod hittable;
 mod materials;
@@ -109,11 +111,11 @@ fn main() -> Result<(), image::ImageError> {
     const FOCUS_DIST: f32 = 10.0;
 
     // render settings
-    const SAMPLES: u32 = 500;
+    const NFRAMES: u32 = 8;
+    const SAMPLES: u32 = 500 / NFRAMES;
     const MAXDEPTH: u32 = 50;
 
     let mut world = HitList::new();
-    let mut rng = rand::thread_rng();
 
     /*
      * NOTE: The way I have it, each object holds it's own material object.
@@ -127,6 +129,7 @@ fn main() -> Result<(), image::ImageError> {
         Material::new_lambertian(LinSrgb::new(0.5, 0.5, 0.5)),
     )));
 
+    let mut rng = rand::thread_rng();
     let distrib = Uniform::new(0f32, 1f32);
 
     for a in -11..11 {
@@ -202,30 +205,62 @@ fn main() -> Result<(), image::ImageError> {
     let camera = Camera::new(
         LOOKFROM, LOOKAT, VIEWUP, FOFDEGS, ASPECT, APERTURE, FOCUS_DIST,
     );
-    let mut framebuffer = image::RgbImage::new(WIDTH, HEIGHT);
+    // let mut framebuffer = image::RgbImage::new(WIDTH, HEIGHT);
 
-    let pbar = ProgressBar::new(HEIGHT as u64);
+    let multiprogress = MultiProgress::new();
+    let mut pbars = Vec::new();
+    for _ in 0..NFRAMES {
+        pbars.push(multiprogress.add(ProgressBar::new(WIDTH as u64)));
+    }
+
+    thread::spawn(move || multiprogress.join().unwrap());
+
+    let mut framebuffer = (0..NFRAMES)
+        .into_par_iter()
+        .map_with(world, |world, iframe| {
+            let mut framebuffer = Vec::with_capacity((WIDTH * HEIGHT) as usize);
+            let mut rng = rand::thread_rng();
+            for ii in 0..WIDTH {
+                for jj in 0..HEIGHT {
+                    let mut pixel_color = LinSrgb::new(0.0, 0.0, 0.0);
+                    for _ in 0..SAMPLES {
+                        let u = (ii as f32 + rng.gen::<f32>()) / (WIDTH - 1) as f32;
+                        let v = (jj as f32 + rng.gen::<f32>()) / (HEIGHT - 1) as f32;
+                        let ray = camera.get_ray(u, v, &mut rng);
+                        pixel_color += ray_color(&ray, world, MAXDEPTH, &mut rng);
+                    }
+                    pixel_color /= SAMPLES as f32;
+                    framebuffer.push(pixel_color);
+                }
+                pbars[iframe as usize].inc(1);
+            }
+            pbars[iframe as usize].finish_with_message("done");
+            framebuffer
+        })
+        .reduce_with(|accum, x| accum.iter().zip(x.iter()).map(|(&a, &b)| a + b).collect())
+        .unwrap();
+
+    for v in framebuffer.iter_mut() {
+        *v /= NFRAMES as f32;
+    }
+
+    let mut frame = image::RgbImage::new(WIDTH, HEIGHT);
+
     for jj in 0..HEIGHT {
         for ii in 0..WIDTH {
-            let mut pixel_color = LinSrgb::new(0.0, 0.0, 0.0);
-            for _ in 0..SAMPLES {
-                let u = (ii as f32 + rng.gen::<f32>()) / (WIDTH - 1) as f32;
-                let v = (jj as f32 + rng.gen::<f32>()) / (HEIGHT - 1) as f32;
-                let ray = camera.get_ray(u, v, &mut rng);
-                pixel_color += ray_color(&ray, &world, MAXDEPTH, &mut rng);
-            }
-            pixel_color /= SAMPLES as f32;
-            framebuffer.put_pixel(
+            frame.put_pixel(
                 ii,
                 HEIGHT - jj - 1,
-                image::Rgb(Srgb::from_linear(pixel_color).into_format().into()),
+                image::Rgb(
+                    Srgb::from_linear(framebuffer[(ii * HEIGHT + jj) as usize])
+                        .into_format()
+                        .into(),
+                ),
             );
         }
-        pbar.inc(1);
     }
-    pbar.finish_with_message("render complete");
 
-    framebuffer.save("./image.png")?;
+    frame.save("./image.png")?;
 
     Ok(())
 }

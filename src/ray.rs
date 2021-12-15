@@ -10,14 +10,17 @@ pub struct Ray {
 }
 
 impl Ray {
+    #[inline(always)]
     pub fn at(&self, t: f32) -> Vec3 {
         self.origin + t * self.direction
     }
 
+    #[inline(always)]
     pub fn normalize(&self) -> Vec3 {
         self.direction.normalize()
     }
 
+    #[inline(always)]
     pub fn norm_squared(&self) -> f32 {
         self.direction.norm_squared()
     }
