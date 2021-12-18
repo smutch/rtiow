@@ -24,6 +24,11 @@ impl Ray {
     pub fn norm_squared(&self) -> f32 {
         self.direction.norm_squared()
     }
+
+    #[inline(always)]
+    pub fn norm(&self) -> f32 {
+        self.direction.norm()
+    }
 }
 
 pub fn random_in_unit_sphere(rng: &mut ThreadRng) -> Vec3 {

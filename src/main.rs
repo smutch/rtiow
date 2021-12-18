@@ -11,9 +11,11 @@ use rand::{prelude::ThreadRng, Rng};
 use rayon::prelude::*;
 
 mod hittable;
+mod lights;
 mod materials;
 mod ray;
 use crate::hittable::*;
+use crate::lights::Light;
 use crate::materials::Material;
 use crate::ray::*;
 
@@ -78,7 +80,13 @@ impl Camera {
     }
 }
 
-fn ray_color(ray: &Ray, world: &HitList, depth: u32, rng: &mut ThreadRng) -> LinSrgb {
+fn ray_color(
+    ray: &Ray,
+    world: &HitList,
+    lights: &[Light],
+    depth: u32,
+    rng: &mut ThreadRng,
+) -> LinSrgb {
     if depth == 0 {
         return LinSrgb::new(0.0, 0.0, 0.0);
     }
@@ -89,17 +97,36 @@ fn ray_color(ray: &Ray, world: &HitList, depth: u32, rng: &mut ThreadRng) -> Lin
             let t = 0.5 * (direction.y + 1.0);
             LinSrgb::new(1.0, 1.0, 1.0) * (1.0 - t) + LinSrgb::new(0.5, 0.7, 1.0) * t
         }
-        Some(hitrecord) => match hitrecord.material.scatter(ray, &hitrecord, rng) {
-            Some(event) => ray_color(&event.ray, world, depth - 1, rng).mul(event.attenuation),
-            None => LinSrgb::new(0.0, 0.0, 0.0),
-        },
+        Some(hitrecord) => {
+            let mut visible = true;
+            for light in lights {
+                if !visible {
+                    break;
+                }
+                let shadow_ray = Ray {
+                    origin: hitrecord.pos,
+                    direction: light.get_position() - hitrecord.pos,
+                };
+                if world.hit(&shadow_ray, 0.001, shadow_ray.norm()).is_some() {
+                    visible = false
+                };
+            }
+            match hitrecord.material.scatter(ray, &hitrecord, rng) {
+                Some(event) => {
+                    ray_color(&event.ray, world, lights, depth - 1, rng)
+                        * event.attenuation
+                        * visible as u32 as f32
+                }
+                None => LinSrgb::new(0.0, 0.0, 0.0),
+            }
+        }
     }
 }
 
 fn main() -> Result<(), image::ImageError> {
     // image settings
     const ASPECT: f32 = 3.0 / 2.0;
-    const WIDTH: u32 = 1200;
+    const WIDTH: u32 = 200;
     const HEIGHT: u32 = (WIDTH as f32 / ASPECT) as u32;
 
     // camera settings
@@ -111,8 +138,8 @@ fn main() -> Result<(), image::ImageError> {
     const FOCUS_DIST: f32 = 10.0;
 
     // render settings
-    const NFRAMES: u32 = 8;
-    const SAMPLES: u32 = 500 / NFRAMES;
+    const NFRAMES: u32 = 1;
+    const SAMPLES: u32 = 200 / NFRAMES;
     const MAXDEPTH: u32 = 50;
 
     let mut world = HitList::new();
@@ -132,75 +159,81 @@ fn main() -> Result<(), image::ImageError> {
     let mut rng = rand::thread_rng();
     let distrib = Uniform::new(0f32, 1f32);
 
-    for a in -11..11 {
-        for b in -11..11 {
-            let choose_mat = distrib.sample(&mut rng);
-            let center = vec3(
-                a as f32 + 0.9 * distrib.sample(&mut rng),
-                0.2,
-                b as f32 + 0.9 * distrib.sample(&mut rng),
-            );
-
-            if (center - vec3(4.0, 0.2, 0.0)).norm() > 0.9 {
-                if choose_mat < 0.8 {
-                    // diffuse
-                    let albedo = LinSrgb::new(
-                        distrib.sample(&mut rng),
-                        distrib.sample(&mut rng),
-                        distrib.sample(&mut rng),
-                    ) * LinSrgb::new(
-                        distrib.sample(&mut rng),
-                        distrib.sample(&mut rng),
-                        distrib.sample(&mut rng),
-                    );
-                    world.push(Box::new(Sphere::new(
-                        center,
-                        0.2,
-                        Material::new_lambertian(albedo),
-                    )));
-                } else if choose_mat < 0.95 {
-                    // metal
-                    let distrib = Uniform::new(0.5f32, 1f32);
-                    let albedo = LinSrgb::new(
-                        distrib.sample(&mut rng),
-                        distrib.sample(&mut rng),
-                        distrib.sample(&mut rng),
-                    );
-                    let fuzz = distrib.sample(&mut rng);
-                    world.push(Box::new(Sphere::new(
-                        center,
-                        0.2,
-                        Material::new_metal(albedo, fuzz),
-                    )));
-                } else {
-                    // glass
-                    world.push(Box::new(Sphere::new(
-                        center,
-                        0.2,
-                        Material::new_dialectric(1.5),
-                    )));
-                }
-            }
-        }
-    }
-
-    world.push(Box::new(Sphere::new(
-        vec3(0., 1., 0.),
-        1.0,
-        Material::new_dialectric(1.5),
-    )));
-
-    world.push(Box::new(Sphere::new(
-        vec3(-4., 1., 0.),
-        1.0,
-        Material::new_lambertian(LinSrgb::new(0.4, 0.2, 0.1)),
-    )));
+    // for a in -11..11 {
+    //     for b in -11..11 {
+    //         let choose_mat = distrib.sample(&mut rng);
+    //         let center = vec3(
+    //             a as f32 + 0.9 * distrib.sample(&mut rng),
+    //             0.2,
+    //             b as f32 + 0.9 * distrib.sample(&mut rng),
+    //         );
+    //
+    //         if (center - vec3(4.0, 0.2, 0.0)).norm() > 0.9 {
+    //             if choose_mat < 0.8 {
+    //                 // diffuse
+    //                 let albedo = LinSrgb::new(
+    //                     distrib.sample(&mut rng),
+    //                     distrib.sample(&mut rng),
+    //                     distrib.sample(&mut rng),
+    //                 ) * LinSrgb::new(
+    //                     distrib.sample(&mut rng),
+    //                     distrib.sample(&mut rng),
+    //                     distrib.sample(&mut rng),
+    //                 );
+    //                 world.push(Box::new(Sphere::new(
+    //                     center,
+    //                     0.2,
+    //                     Material::new_lambertian(albedo),
+    //                 )));
+    //             } else if choose_mat < 0.95 {
+    //                 // metal
+    //                 let distrib = Uniform::new(0.5f32, 1f32);
+    //                 let albedo = LinSrgb::new(
+    //                     distrib.sample(&mut rng),
+    //                     distrib.sample(&mut rng),
+    //                     distrib.sample(&mut rng),
+    //                 );
+    //                 let fuzz = distrib.sample(&mut rng);
+    //                 world.push(Box::new(Sphere::new(
+    //                     center,
+    //                     0.2,
+    //                     Material::new_metal(albedo, fuzz),
+    //                 )));
+    //             } else {
+    //                 // glass
+    //                 world.push(Box::new(Sphere::new(
+    //                     center,
+    //                     0.2,
+    //                     Material::new_dialectric(1.5),
+    //                 )));
+    //             }
+    //         }
+    //     }
+    // }
+    //
+    // world.push(Box::new(Sphere::new(
+    //     vec3(0., 1., 0.),
+    //     1.0,
+    //     Material::new_dialectric(1.5),
+    // )));
+    //
+    // world.push(Box::new(Sphere::new(
+    //     vec3(-4., 1., 0.),
+    //     1.0,
+    //     Material::new_lambertian(LinSrgb::new(0.4, 0.2, 0.1)),
+    // )));
 
     world.push(Box::new(Sphere::new(
         vec3(4., 1., 0.),
         1.0,
         Material::new_metal(LinSrgb::new(0.7, 0.6, 0.5), 0.0),
     )));
+
+    let lights = vec![Light::Point {
+        position: vec3(8.0, 10.0, 0.0),
+        color: LinSrgb::new(1.0, 1.0, 1.0),
+        luminosity: 1.0,
+    }];
 
     let camera = Camera::new(
         LOOKFROM, LOOKAT, VIEWUP, FOFDEGS, ASPECT, APERTURE, FOCUS_DIST,
@@ -227,7 +260,7 @@ fn main() -> Result<(), image::ImageError> {
                         let u = (ii as f32 + rng.gen::<f32>()) / (WIDTH - 1) as f32;
                         let v = (jj as f32 + rng.gen::<f32>()) / (HEIGHT - 1) as f32;
                         let ray = camera.get_ray(u, v, &mut rng);
-                        pixel_color += ray_color(&ray, world, MAXDEPTH, &mut rng);
+                        pixel_color += ray_color(&ray, world, &lights, MAXDEPTH, &mut rng);
                     }
                     pixel_color /= SAMPLES as f32;
                     framebuffer.push(pixel_color);
