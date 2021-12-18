@@ -96,26 +96,23 @@ fn ray_color(
             let direction = ray.normalize();
             let t = 0.5 * (direction.y + 1.0);
             LinSrgb::new(1.0, 1.0, 1.0) * (1.0 - t) + LinSrgb::new(0.5, 0.7, 1.0) * t
+            // LinSrgb::new(0.0, 0.0, 0.0)
         }
         Some(hitrecord) => {
-            let mut visible = true;
+            let mut intensity = LinSrgb::new(0.0, 0.0, 0.0);
             for light in lights {
-                if !visible {
-                    break;
-                }
                 let shadow_ray = Ray {
                     origin: hitrecord.pos,
                     direction: light.get_position() - hitrecord.pos,
                 };
-                if world.hit(&shadow_ray, 0.001, shadow_ray.norm()).is_some() {
-                    visible = false
-                };
+                let visible =
+                    world.hit(&shadow_ray, 0.001, shadow_ray.norm()).is_none() as u32 as f32;
+                intensity += light.get_color() * visible;
             }
             match hitrecord.material.scatter(ray, &hitrecord, rng) {
                 Some(event) => {
-                    ray_color(&event.ray, world, lights, depth - 1, rng)
+                    (ray_color(&event.ray, world, lights, depth - 1, rng) + intensity)
                         * event.attenuation
-                        * visible as u32 as f32
                 }
                 None => LinSrgb::new(0.0, 0.0, 0.0),
             }
@@ -210,13 +207,13 @@ fn main() -> Result<(), image::ImageError> {
     //         }
     //     }
     // }
-    //
-    // world.push(Box::new(Sphere::new(
-    //     vec3(0., 1., 0.),
-    //     1.0,
-    //     Material::new_dialectric(1.5),
-    // )));
-    //
+
+    world.push(Box::new(Sphere::new(
+        vec3(0., 1., 0.),
+        1.0,
+        Material::new_dialectric(1.5),
+    )));
+
     // world.push(Box::new(Sphere::new(
     //     vec3(-4., 1., 0.),
     //     1.0,
@@ -231,7 +228,7 @@ fn main() -> Result<(), image::ImageError> {
 
     let lights = vec![Light::Point {
         position: vec3(8.0, 10.0, 0.0),
-        color: LinSrgb::new(1.0, 1.0, 1.0),
+        color: LinSrgb::new(0.3, 0.3, 0.6),
         luminosity: 1.0,
     }];
 

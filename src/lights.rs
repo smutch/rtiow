@@ -24,4 +24,14 @@ impl Light {
             } => position,
         }
     }
+
+    pub fn get_color(&self) -> LinSrgb {
+        match *self {
+            Light::Point {
+                position: _,
+                color,
+                luminosity: _,
+            } => color,
+        }
+    }
 }
