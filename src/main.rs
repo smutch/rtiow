@@ -1,4 +1,5 @@
 #![allow(dead_code, unused_imports)]
+use std::f32::consts::PI;
 use std::ops::Mul;
 use std::thread;
 
@@ -18,6 +19,25 @@ use crate::hittable::*;
 use crate::lights::Light;
 use crate::materials::Material;
 use crate::ray::*;
+
+// image settings
+const ASPECT: f32 = 3.0 / 2.0;
+const WIDTH: u32 = 400;
+const HEIGHT: u32 = (WIDTH as f32 / ASPECT) as u32;
+
+// camera settings
+const FOFDEGS: f32 = 20.0;
+const LOOKFROM: Vec3 = Vec3::new(13., 2., 3.);
+const LOOKAT: Vec3 = Vec3::new(0., 0., 0.);
+const VIEWUP: Vec3 = Vec3::new(0., 1., 0.);
+const APERTURE: f32 = 0.1;
+const FOCUS_DIST: f32 = 10.0;
+
+// render settings
+const NFRAMES: u32 = 2;
+const SAMPLES: u32 = 500 / NFRAMES;
+const MAXDEPTH: u32 = 50;
+const TMIN: f32 = 0.005;
 
 struct Camera {
     origin: Vec3,
@@ -91,11 +111,11 @@ fn ray_color(
         return LinSrgb::new(0.0, 0.0, 0.0);
     }
 
-    match world.hit(ray, 0.001, f32::INFINITY) {
+    match world.hit(ray, TMIN, f32::INFINITY) {
         None => {
             let direction = ray.normalize();
             let t = 0.5 * (direction.y + 1.0);
-            LinSrgb::new(1.0, 1.0, 1.0) * (1.0 - t) + LinSrgb::new(0.5, 0.7, 1.0) * t
+            (LinSrgb::new(1.0, 1.0, 1.0) * (1.0 - t) + LinSrgb::new(0.5, 0.7, 1.0) * t) * 0.1
             // LinSrgb::new(0.0, 0.0, 0.0)
         }
         Some(hitrecord) => {
@@ -105,12 +125,20 @@ fn ray_color(
                     origin: hitrecord.pos,
                     direction: light.get_position() - hitrecord.pos,
                 };
-                let visible =
-                    world.hit(&shadow_ray, 0.001, shadow_ray.norm()).is_none() as u32 as f32;
-                intensity += light.get_color() * visible;
+                let shadow_ray_dist = shadow_ray.norm();
+                let shadow_ray_normal = shadow_ray.direction / shadow_ray_dist;
+                let visible = world.hit(&shadow_ray, TMIN, shadow_ray_dist).is_none() as u32 as f32;
+                intensity += light.get_color()
+                    * visible
+                    * shadow_ray_normal.dot(&hitrecord.normal).min(1.0)
+                    * light.get_luminosity()
+                    / (4.0 * PI * shadow_ray_dist * shadow_ray_dist);
             }
             match hitrecord.material.scatter(ray, &hitrecord, rng) {
                 Some(event) => {
+                    /*
+                     * TODO: I'm not sure this is right...
+                     */
                     (ray_color(&event.ray, world, lights, depth - 1, rng) + intensity)
                         * event.attenuation
                 }
@@ -121,24 +149,6 @@ fn ray_color(
 }
 
 fn main() -> Result<(), image::ImageError> {
-    // image settings
-    const ASPECT: f32 = 3.0 / 2.0;
-    const WIDTH: u32 = 200;
-    const HEIGHT: u32 = (WIDTH as f32 / ASPECT) as u32;
-
-    // camera settings
-    const FOFDEGS: f32 = 20.0;
-    const LOOKFROM: Vec3 = Vec3::new(13., 2., 3.);
-    const LOOKAT: Vec3 = Vec3::new(0., 0., 0.);
-    const VIEWUP: Vec3 = Vec3::new(0., 1., 0.);
-    const APERTURE: f32 = 0.1;
-    const FOCUS_DIST: f32 = 10.0;
-
-    // render settings
-    const NFRAMES: u32 = 1;
-    const SAMPLES: u32 = 200 / NFRAMES;
-    const MAXDEPTH: u32 = 50;
-
     let mut world = HitList::new();
 
     /*
@@ -209,16 +219,16 @@ fn main() -> Result<(), image::ImageError> {
     // }
 
     world.push(Box::new(Sphere::new(
+        vec3(-4., 1., 0.),
+        1.0,
+        Material::new_lambertian(LinSrgb::new(0.4, 0.2, 0.1)),
+    )));
+
+    world.push(Box::new(Sphere::new(
         vec3(0., 1., 0.),
         1.0,
         Material::new_dialectric(1.5),
     )));
-
-    // world.push(Box::new(Sphere::new(
-    //     vec3(-4., 1., 0.),
-    //     1.0,
-    //     Material::new_lambertian(LinSrgb::new(0.4, 0.2, 0.1)),
-    // )));
 
     world.push(Box::new(Sphere::new(
         vec3(4., 1., 0.),
@@ -227,9 +237,9 @@ fn main() -> Result<(), image::ImageError> {
     )));
 
     let lights = vec![Light::Point {
-        position: vec3(8.0, 10.0, 0.0),
-        color: LinSrgb::new(0.3, 0.3, 0.6),
-        luminosity: 1.0,
+        position: vec3(1.0, 5.0, 0.0),
+        color: LinSrgb::new(1.0, 1.0, 1.0),
+        luminosity: 50.0,
     }];
 
     let camera = Camera::new(

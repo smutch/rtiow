@@ -34,4 +34,14 @@ impl Light {
             } => color,
         }
     }
+
+    pub fn get_luminosity(&self) -> f32 {
+        match *self {
+            Light::Point {
+                position: _,
+                color: _,
+                luminosity,
+            } => luminosity,
+        }
+    }
 }
