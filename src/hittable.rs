@@ -29,7 +29,7 @@ impl<'b> HitRecord<'b> {
     }
 }
 
-pub trait Hittable: HittableClone + Send {
+pub trait Hittable: HittableClone + Send + Sync {
     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord>;
 }
 

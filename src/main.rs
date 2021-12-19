@@ -1,5 +1,4 @@
-#![allow(dead_code, unused_imports)]
-use std::ops::Mul;
+// #![allow(dead_code, unused_imports)]
 use std::thread;
 
 use indicatif::{MultiProgress, ProgressBar};
@@ -11,9 +10,11 @@ use rand::{prelude::ThreadRng, Rng};
 use rayon::prelude::*;
 
 mod hittable;
+mod lights;
 mod materials;
 mod ray;
 use crate::hittable::*;
+use crate::lights::Light;
 use crate::materials::Material;
 use crate::ray::*;
 
@@ -24,7 +25,7 @@ struct Camera {
     lower_left_corner: Vec3,
     u: Vec3,
     v: Vec3,
-    w: Vec3,
+    _w: Vec3,
     lens_radius: f32,
 }
 
@@ -61,7 +62,7 @@ impl Camera {
             lower_left_corner,
             u,
             v,
-            w,
+            _w: w,
             lens_radius,
         }
     }
@@ -78,21 +79,42 @@ impl Camera {
     }
 }
 
-fn ray_color(ray: &Ray, world: &HitList, depth: u32, rng: &mut ThreadRng) -> LinSrgb {
+fn ray_color(
+    ray: &Ray,
+    world: &HitList,
+    lights: &[Light],
+    depth: u32,
+    rng: &mut ThreadRng,
+) -> LinSrgb {
+    const TMIN: f32 = 0.005;
+
     if depth == 0 {
         return LinSrgb::new(0.0, 0.0, 0.0);
     }
 
-    match world.hit(ray, 0.001, f32::INFINITY) {
+    match world.hit(ray, TMIN, f32::INFINITY) {
         None => {
             let direction = ray.normalize();
             let t = 0.5 * (direction.y + 1.0);
-            LinSrgb::new(1.0, 1.0, 1.0) * (1.0 - t) + LinSrgb::new(0.5, 0.7, 1.0) * t
+            (LinSrgb::new(1.0, 1.0, 1.0) * (1.0 - t) + LinSrgb::new(0.5, 0.7, 1.0) * t) * 0.5
         }
-        Some(hitrecord) => match hitrecord.material.scatter(ray, &hitrecord, rng) {
-            Some(event) => ray_color(&event.ray, world, depth - 1, rng).mul(event.attenuation),
-            None => LinSrgb::new(0.0, 0.0, 0.0),
-        },
+        Some(hitrecord) => {
+            let intensity = lights
+                .iter()
+                .fold(LinSrgb::new(0.0, 0.0, 0.0), |acc, light| {
+                    acc + light.intensity(&hitrecord, world, TMIN)
+                });
+            match hitrecord.material.scatter(ray, &hitrecord, rng) {
+                Some(event) => {
+                    /*
+                     * TODO: I'm not sure this is right...
+                     */
+                    (ray_color(&event.ray, world, lights, depth - 1, rng) + intensity)
+                        * event.attenuation
+                }
+                None => LinSrgb::new(0.0, 0.0, 0.0),
+            }
+        }
     }
 }
 
@@ -112,7 +134,7 @@ fn main() -> Result<(), image::ImageError> {
 
     // render settings
     const NFRAMES: u32 = 8;
-    const SAMPLES: u32 = 500 / NFRAMES;
+    const SAMPLES: u32 = 1000 / NFRAMES;
     const MAXDEPTH: u32 = 50;
 
     let mut world = HitList::new();
@@ -185,15 +207,15 @@ fn main() -> Result<(), image::ImageError> {
     }
 
     world.push(Box::new(Sphere::new(
-        vec3(0., 1., 0.),
-        1.0,
-        Material::new_dialectric(1.5),
-    )));
-
-    world.push(Box::new(Sphere::new(
         vec3(-4., 1., 0.),
         1.0,
         Material::new_lambertian(LinSrgb::new(0.4, 0.2, 0.1)),
+    )));
+
+    world.push(Box::new(Sphere::new(
+        vec3(0., 1., 0.),
+        1.0,
+        Material::new_dialectric(1.5),
     )));
 
     world.push(Box::new(Sphere::new(
@@ -202,10 +224,15 @@ fn main() -> Result<(), image::ImageError> {
         Material::new_metal(LinSrgb::new(0.7, 0.6, 0.5), 0.0),
     )));
 
+    let lights = vec![Light::Point {
+        position: vec3(1.0, 5.0, 0.0),
+        color: LinSrgb::new(1.0, 1.0, 1.0),
+        luminosity: 100.0,
+    }];
+
     let camera = Camera::new(
         LOOKFROM, LOOKAT, VIEWUP, FOFDEGS, ASPECT, APERTURE, FOCUS_DIST,
     );
-    // let mut framebuffer = image::RgbImage::new(WIDTH, HEIGHT);
 
     let multiprogress = MultiProgress::new();
     let mut pbars = Vec::new();
@@ -217,7 +244,7 @@ fn main() -> Result<(), image::ImageError> {
 
     let mut framebuffer = (0..NFRAMES)
         .into_par_iter()
-        .map_with(world, |world, iframe| {
+        .map(|iframe| {
             let mut framebuffer = Vec::with_capacity((WIDTH * HEIGHT) as usize);
             let mut rng = rand::thread_rng();
             for ii in 0..WIDTH {
@@ -227,12 +254,14 @@ fn main() -> Result<(), image::ImageError> {
                         let u = (ii as f32 + rng.gen::<f32>()) / (WIDTH - 1) as f32;
                         let v = (jj as f32 + rng.gen::<f32>()) / (HEIGHT - 1) as f32;
                         let ray = camera.get_ray(u, v, &mut rng);
-                        pixel_color += ray_color(&ray, world, MAXDEPTH, &mut rng);
+                        pixel_color += ray_color(&ray, &world, &lights, MAXDEPTH, &mut rng);
                     }
                     pixel_color /= SAMPLES as f32;
                     framebuffer.push(pixel_color);
                 }
-                pbars[iframe as usize].inc(1);
+                if ii % 10 == 0 {
+                    pbars[iframe as usize].inc(10);
+                }
             }
             pbars[iframe as usize].finish_with_message("done");
             framebuffer
