@@ -1,6 +1,4 @@
-#![allow(dead_code, unused_imports)]
-use std::f32::consts::PI;
-use std::ops::Mul;
+// #![allow(dead_code, unused_imports)]
 use std::thread;
 
 use indicatif::{MultiProgress, ProgressBar};
@@ -27,7 +25,7 @@ struct Camera {
     lower_left_corner: Vec3,
     u: Vec3,
     v: Vec3,
-    w: Vec3,
+    _w: Vec3,
     lens_radius: f32,
 }
 
@@ -64,7 +62,7 @@ impl Camera {
             lower_left_corner,
             u,
             v,
-            w,
+            _w: w,
             lens_radius,
         }
     }
@@ -98,7 +96,7 @@ fn ray_color(
         None => {
             let direction = ray.normalize();
             let t = 0.5 * (direction.y + 1.0);
-            (LinSrgb::new(1.0, 1.0, 1.0) * (1.0 - t) + LinSrgb::new(0.5, 0.7, 1.0) * t) * 0.1
+            (LinSrgb::new(1.0, 1.0, 1.0) * (1.0 - t) + LinSrgb::new(0.5, 0.7, 1.0) * t) * 0.5
         }
         Some(hitrecord) => {
             let intensity = lights
@@ -123,7 +121,7 @@ fn ray_color(
 fn main() -> Result<(), image::ImageError> {
     // image settings
     const ASPECT: f32 = 3.0 / 2.0;
-    const WIDTH: u32 = 400;
+    const WIDTH: u32 = 1200;
     const HEIGHT: u32 = (WIDTH as f32 / ASPECT) as u32;
 
     // camera settings
@@ -135,8 +133,8 @@ fn main() -> Result<(), image::ImageError> {
     const FOCUS_DIST: f32 = 10.0;
 
     // render settings
-    const NFRAMES: u32 = 2;
-    const SAMPLES: u32 = 500 / NFRAMES;
+    const NFRAMES: u32 = 8;
+    const SAMPLES: u32 = 1000 / NFRAMES;
     const MAXDEPTH: u32 = 50;
 
     let mut world = HitList::new();
@@ -156,57 +154,57 @@ fn main() -> Result<(), image::ImageError> {
     let mut rng = rand::thread_rng();
     let distrib = Uniform::new(0f32, 1f32);
 
-    // for a in -11..11 {
-    //     for b in -11..11 {
-    //         let choose_mat = distrib.sample(&mut rng);
-    //         let center = vec3(
-    //             a as f32 + 0.9 * distrib.sample(&mut rng),
-    //             0.2,
-    //             b as f32 + 0.9 * distrib.sample(&mut rng),
-    //         );
-    //
-    //         if (center - vec3(4.0, 0.2, 0.0)).norm() > 0.9 {
-    //             if choose_mat < 0.8 {
-    //                 // diffuse
-    //                 let albedo = LinSrgb::new(
-    //                     distrib.sample(&mut rng),
-    //                     distrib.sample(&mut rng),
-    //                     distrib.sample(&mut rng),
-    //                 ) * LinSrgb::new(
-    //                     distrib.sample(&mut rng),
-    //                     distrib.sample(&mut rng),
-    //                     distrib.sample(&mut rng),
-    //                 );
-    //                 world.push(Box::new(Sphere::new(
-    //                     center,
-    //                     0.2,
-    //                     Material::new_lambertian(albedo),
-    //                 )));
-    //             } else if choose_mat < 0.95 {
-    //                 // metal
-    //                 let distrib = Uniform::new(0.5f32, 1f32);
-    //                 let albedo = LinSrgb::new(
-    //                     distrib.sample(&mut rng),
-    //                     distrib.sample(&mut rng),
-    //                     distrib.sample(&mut rng),
-    //                 );
-    //                 let fuzz = distrib.sample(&mut rng);
-    //                 world.push(Box::new(Sphere::new(
-    //                     center,
-    //                     0.2,
-    //                     Material::new_metal(albedo, fuzz),
-    //                 )));
-    //             } else {
-    //                 // glass
-    //                 world.push(Box::new(Sphere::new(
-    //                     center,
-    //                     0.2,
-    //                     Material::new_dialectric(1.5),
-    //                 )));
-    //             }
-    //         }
-    //     }
-    // }
+    for a in -11..11 {
+        for b in -11..11 {
+            let choose_mat = distrib.sample(&mut rng);
+            let center = vec3(
+                a as f32 + 0.9 * distrib.sample(&mut rng),
+                0.2,
+                b as f32 + 0.9 * distrib.sample(&mut rng),
+            );
+
+            if (center - vec3(4.0, 0.2, 0.0)).norm() > 0.9 {
+                if choose_mat < 0.8 {
+                    // diffuse
+                    let albedo = LinSrgb::new(
+                        distrib.sample(&mut rng),
+                        distrib.sample(&mut rng),
+                        distrib.sample(&mut rng),
+                    ) * LinSrgb::new(
+                        distrib.sample(&mut rng),
+                        distrib.sample(&mut rng),
+                        distrib.sample(&mut rng),
+                    );
+                    world.push(Box::new(Sphere::new(
+                        center,
+                        0.2,
+                        Material::new_lambertian(albedo),
+                    )));
+                } else if choose_mat < 0.95 {
+                    // metal
+                    let distrib = Uniform::new(0.5f32, 1f32);
+                    let albedo = LinSrgb::new(
+                        distrib.sample(&mut rng),
+                        distrib.sample(&mut rng),
+                        distrib.sample(&mut rng),
+                    );
+                    let fuzz = distrib.sample(&mut rng);
+                    world.push(Box::new(Sphere::new(
+                        center,
+                        0.2,
+                        Material::new_metal(albedo, fuzz),
+                    )));
+                } else {
+                    // glass
+                    world.push(Box::new(Sphere::new(
+                        center,
+                        0.2,
+                        Material::new_dialectric(1.5),
+                    )));
+                }
+            }
+        }
+    }
 
     world.push(Box::new(Sphere::new(
         vec3(-4., 1., 0.),
@@ -229,13 +227,12 @@ fn main() -> Result<(), image::ImageError> {
     let lights = vec![Light::Point {
         position: vec3(1.0, 5.0, 0.0),
         color: LinSrgb::new(1.0, 1.0, 1.0),
-        luminosity: 50.0,
+        luminosity: 100.0,
     }];
 
     let camera = Camera::new(
         LOOKFROM, LOOKAT, VIEWUP, FOFDEGS, ASPECT, APERTURE, FOCUS_DIST,
     );
-    // let mut framebuffer = image::RgbImage::new(WIDTH, HEIGHT);
 
     let multiprogress = MultiProgress::new();
     let mut pbars = Vec::new();
@@ -262,7 +259,9 @@ fn main() -> Result<(), image::ImageError> {
                     pixel_color /= SAMPLES as f32;
                     framebuffer.push(pixel_color);
                 }
-                pbars[iframe as usize].inc(1);
+                if ii % 10 == 0 {
+                    pbars[iframe as usize].inc(10);
+                }
             }
             pbars[iframe as usize].finish_with_message("done");
             framebuffer

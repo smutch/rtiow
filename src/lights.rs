@@ -31,7 +31,7 @@ impl Light {
                 let shadow_ray_dist = shadow_ray.norm();
                 let shadow_ray_normal = shadow_ray.direction / shadow_ray_dist;
                 let visible = world.hit(&shadow_ray, tmin, shadow_ray_dist).is_none() as u32 as f32;
-                color * visible * shadow_ray_normal.dot(&hitrecord.normal).min(1.0) * luminosity
+                color * visible * shadow_ray_normal.dot(&hitrecord.normal).max(0.0) * luminosity
                     / (4.0 * PI * shadow_ray_dist * shadow_ray_dist)
             }
         }
