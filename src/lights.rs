@@ -1,8 +1,10 @@
+use std::f32::consts::PI;
+
 use nalgebra_glm::Vec3;
 use palette::LinSrgb;
 
 use crate::{
-    hittable::{HitRecord, Hittable},
+    hittable::{HitList, HitRecord, Hittable},
     ray::Ray,
 };
 
@@ -15,33 +17,23 @@ pub enum Light {
 }
 
 impl Light {
-    pub fn get_position(&self) -> Vec3 {
+    pub fn intensity(&self, hitrecord: &HitRecord, world: &HitList, tmin: f32) -> LinSrgb {
         match *self {
             Light::Point {
                 position,
-                color: _,
-                luminosity: _,
-            } => position,
-        }
-    }
-
-    pub fn get_color(&self) -> LinSrgb {
-        match *self {
-            Light::Point {
-                position: _,
                 color,
-                luminosity: _,
-            } => color,
-        }
-    }
-
-    pub fn get_luminosity(&self) -> f32 {
-        match *self {
-            Light::Point {
-                position: _,
-                color: _,
                 luminosity,
-            } => luminosity,
+            } => {
+                let shadow_ray = Ray {
+                    origin: hitrecord.pos,
+                    direction: position - hitrecord.pos,
+                };
+                let shadow_ray_dist = shadow_ray.norm();
+                let shadow_ray_normal = shadow_ray.direction / shadow_ray_dist;
+                let visible = world.hit(&shadow_ray, tmin, shadow_ray_dist).is_none() as u32 as f32;
+                color * visible * shadow_ray_normal.dot(&hitrecord.normal).min(1.0) * luminosity
+                    / (4.0 * PI * shadow_ray_dist * shadow_ray_dist)
+            }
         }
     }
 }

@@ -20,25 +20,6 @@ use crate::lights::Light;
 use crate::materials::Material;
 use crate::ray::*;
 
-// image settings
-const ASPECT: f32 = 3.0 / 2.0;
-const WIDTH: u32 = 400;
-const HEIGHT: u32 = (WIDTH as f32 / ASPECT) as u32;
-
-// camera settings
-const FOFDEGS: f32 = 20.0;
-const LOOKFROM: Vec3 = Vec3::new(13., 2., 3.);
-const LOOKAT: Vec3 = Vec3::new(0., 0., 0.);
-const VIEWUP: Vec3 = Vec3::new(0., 1., 0.);
-const APERTURE: f32 = 0.1;
-const FOCUS_DIST: f32 = 10.0;
-
-// render settings
-const NFRAMES: u32 = 2;
-const SAMPLES: u32 = 500 / NFRAMES;
-const MAXDEPTH: u32 = 50;
-const TMIN: f32 = 0.005;
-
 struct Camera {
     origin: Vec3,
     horizontal: Vec3,
@@ -107,6 +88,8 @@ fn ray_color(
     depth: u32,
     rng: &mut ThreadRng,
 ) -> LinSrgb {
+    const TMIN: f32 = 0.005;
+
     if depth == 0 {
         return LinSrgb::new(0.0, 0.0, 0.0);
     }
@@ -116,24 +99,13 @@ fn ray_color(
             let direction = ray.normalize();
             let t = 0.5 * (direction.y + 1.0);
             (LinSrgb::new(1.0, 1.0, 1.0) * (1.0 - t) + LinSrgb::new(0.5, 0.7, 1.0) * t) * 0.1
-            // LinSrgb::new(0.0, 0.0, 0.0)
         }
         Some(hitrecord) => {
-            let mut intensity = LinSrgb::new(0.0, 0.0, 0.0);
-            for light in lights {
-                let shadow_ray = Ray {
-                    origin: hitrecord.pos,
-                    direction: light.get_position() - hitrecord.pos,
-                };
-                let shadow_ray_dist = shadow_ray.norm();
-                let shadow_ray_normal = shadow_ray.direction / shadow_ray_dist;
-                let visible = world.hit(&shadow_ray, TMIN, shadow_ray_dist).is_none() as u32 as f32;
-                intensity += light.get_color()
-                    * visible
-                    * shadow_ray_normal.dot(&hitrecord.normal).min(1.0)
-                    * light.get_luminosity()
-                    / (4.0 * PI * shadow_ray_dist * shadow_ray_dist);
-            }
+            let intensity = lights
+                .iter()
+                .fold(LinSrgb::new(0.0, 0.0, 0.0), |acc, light| {
+                    acc + light.intensity(&hitrecord, world, TMIN)
+                });
             match hitrecord.material.scatter(ray, &hitrecord, rng) {
                 Some(event) => {
                     /*
@@ -149,6 +121,24 @@ fn ray_color(
 }
 
 fn main() -> Result<(), image::ImageError> {
+    // image settings
+    const ASPECT: f32 = 3.0 / 2.0;
+    const WIDTH: u32 = 400;
+    const HEIGHT: u32 = (WIDTH as f32 / ASPECT) as u32;
+
+    // camera settings
+    const FOFDEGS: f32 = 20.0;
+    const LOOKFROM: Vec3 = Vec3::new(13., 2., 3.);
+    const LOOKAT: Vec3 = Vec3::new(0., 0., 0.);
+    const VIEWUP: Vec3 = Vec3::new(0., 1., 0.);
+    const APERTURE: f32 = 0.1;
+    const FOCUS_DIST: f32 = 10.0;
+
+    // render settings
+    const NFRAMES: u32 = 2;
+    const SAMPLES: u32 = 500 / NFRAMES;
+    const MAXDEPTH: u32 = 50;
+
     let mut world = HitList::new();
 
     /*
@@ -257,7 +247,7 @@ fn main() -> Result<(), image::ImageError> {
 
     let mut framebuffer = (0..NFRAMES)
         .into_par_iter()
-        .map_with(world, |world, iframe| {
+        .map(|iframe| {
             let mut framebuffer = Vec::with_capacity((WIDTH * HEIGHT) as usize);
             let mut rng = rand::thread_rng();
             for ii in 0..WIDTH {
@@ -267,7 +257,7 @@ fn main() -> Result<(), image::ImageError> {
                         let u = (ii as f32 + rng.gen::<f32>()) / (WIDTH - 1) as f32;
                         let v = (jj as f32 + rng.gen::<f32>()) / (HEIGHT - 1) as f32;
                         let ray = camera.get_ray(u, v, &mut rng);
-                        pixel_color += ray_color(&ray, world, &lights, MAXDEPTH, &mut rng);
+                        pixel_color += ray_color(&ray, &world, &lights, MAXDEPTH, &mut rng);
                     }
                     pixel_color /= SAMPLES as f32;
                     framebuffer.push(pixel_color);
