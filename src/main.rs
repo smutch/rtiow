@@ -2,23 +2,37 @@
 use std::thread;
 
 use indicatif::{MultiProgress, ProgressBar};
-use nalgebra_glm::{vec3, Vec3};
+use nalgebra_glm::Vec3;
 use palette::{LinSrgb, Srgb};
-use rand::distributions::Uniform;
-use rand::prelude::Distribution;
 use rand::{prelude::ThreadRng, Rng};
 use rayon::prelude::*;
 
+mod default_scene;
 mod hittable;
 mod lights;
 mod materials;
 mod ray;
 use crate::hittable::*;
 use crate::lights::Light;
-use crate::materials::Material;
 use crate::ray::*;
 
-struct Camera {
+pub struct Scene {
+    // image settings
+    aspect: f32,
+    width: u32,
+    height: u32,
+
+    // render settings
+    nframes: u32,
+    samples: u32,
+    maxdepth: u32,
+
+    // content
+    hitlist: HitList,
+    lights: Vec<Light>,
+}
+
+pub struct Camera {
     origin: Vec3,
     horizontal: Vec3,
     vertical: Vec3,
@@ -119,144 +133,38 @@ fn ray_color(
 }
 
 fn main() -> Result<(), image::ImageError> {
-    // image settings
-    const ASPECT: f32 = 3.0 / 2.0;
-    const WIDTH: u32 = 1200;
-    const HEIGHT: u32 = (WIDTH as f32 / ASPECT) as u32;
-
-    // camera settings
-    const FOFDEGS: f32 = 20.0;
-    const LOOKFROM: Vec3 = Vec3::new(13., 2., 3.);
-    const LOOKAT: Vec3 = Vec3::new(0., 0., 0.);
-    const VIEWUP: Vec3 = Vec3::new(0., 1., 0.);
-    const APERTURE: f32 = 0.1;
-    const FOCUS_DIST: f32 = 10.0;
-
-    // render settings
-    const NFRAMES: u32 = 8;
-    const SAMPLES: u32 = 1000 / NFRAMES;
-    const MAXDEPTH: u32 = 50;
-
-    let mut world = HitList::new();
-
-    /*
-     * NOTE: The way I have it, each object holds it's own material object.
-     *       Might be better to reuse materials?
-     */
-
-    // ground
-    world.push(Hittable::new_sphere(
-        vec3(0.0, -1000., 0.0),
-        1000.0,
-        Material::new_lambertian(LinSrgb::new(0.5, 0.5, 0.5)),
-    ));
-
-    let mut rng = rand::thread_rng();
-    let distrib = Uniform::new(0f32, 1f32);
-
-    for a in -11..11 {
-        for b in -11..11 {
-            let choose_mat = distrib.sample(&mut rng);
-            let center = vec3(
-                a as f32 + 0.9 * distrib.sample(&mut rng),
-                0.2,
-                b as f32 + 0.9 * distrib.sample(&mut rng),
-            );
-
-            if (center - vec3(4.0, 0.2, 0.0)).norm() > 0.9 {
-                if choose_mat < 0.8 {
-                    // diffuse
-                    let albedo = LinSrgb::new(
-                        distrib.sample(&mut rng),
-                        distrib.sample(&mut rng),
-                        distrib.sample(&mut rng),
-                    ) * LinSrgb::new(
-                        distrib.sample(&mut rng),
-                        distrib.sample(&mut rng),
-                        distrib.sample(&mut rng),
-                    );
-                    world.push(Hittable::new_sphere(
-                        center,
-                        0.2,
-                        Material::new_lambertian(albedo),
-                    ));
-                } else if choose_mat < 0.95 {
-                    // metal
-                    let distrib = Uniform::new(0.5f32, 1f32);
-                    let albedo = LinSrgb::new(
-                        distrib.sample(&mut rng),
-                        distrib.sample(&mut rng),
-                        distrib.sample(&mut rng),
-                    );
-                    let fuzz = distrib.sample(&mut rng);
-                    world.push(Hittable::new_sphere(
-                        center,
-                        0.2,
-                        Material::new_metal(albedo, fuzz),
-                    ));
-                } else {
-                    // glass
-                    world.push(Hittable::new_sphere(
-                        center,
-                        0.2,
-                        Material::new_dialectric(1.5),
-                    ));
-                }
-            }
-        }
-    }
-
-    world.push(Hittable::new_sphere(
-        vec3(-4., 1., 0.),
-        1.0,
-        Material::new_lambertian(LinSrgb::new(0.4, 0.2, 0.1)),
-    ));
-
-    world.push(Hittable::new_sphere(
-        vec3(0., 1., 0.),
-        1.0,
-        Material::new_dialectric(1.5),
-    ));
-
-    world.push(Hittable::new_sphere(
-        vec3(4., 1., 0.),
-        1.0,
-        Material::new_metal(LinSrgb::new(0.7, 0.6, 0.5), 0.0),
-    ));
-
-    let lights = vec![Light::Point {
-        position: vec3(1.0, 5.0, 0.0),
-        color: LinSrgb::new(1.0, 1.0, 1.0),
-        luminosity: 100.0,
-    }];
-
-    let camera = Camera::new(
-        LOOKFROM, LOOKAT, VIEWUP, FOFDEGS, ASPECT, APERTURE, FOCUS_DIST,
-    );
+    let scene = default_scene::scene();
+    let camera = default_scene::camera(&scene);
 
     let multiprogress = MultiProgress::new();
     let mut pbars = Vec::new();
-    for _ in 0..NFRAMES {
-        pbars.push(multiprogress.add(ProgressBar::new(WIDTH as u64)));
+    for _ in 0..scene.nframes {
+        pbars.push(multiprogress.add(ProgressBar::new(scene.width as u64)));
     }
 
     thread::spawn(move || multiprogress.join().unwrap());
 
-    let mut framebuffer = (0..NFRAMES)
+    let mut framebuffer = (0..scene.nframes)
         .into_par_iter()
         .map(|iframe| {
-            let mut framebuffer = Vec::with_capacity((WIDTH * HEIGHT) as usize);
+            let mut framebuffer = Vec::with_capacity((scene.width * scene.height) as usize);
             let mut rng = rand::thread_rng();
-            for ii in 0..WIDTH {
-                for jj in 0..HEIGHT {
+            for ii in 0..scene.width {
+                for jj in 0..scene.height {
                     let mut pixel_color = LinSrgb::new(0.0, 0.0, 0.0);
-                    for _ in 0..SAMPLES {
-                        let u = (ii as f32 + rng.gen::<f32>()) / (WIDTH - 1) as f32;
-                        let v = (jj as f32 + rng.gen::<f32>()) / (HEIGHT - 1) as f32;
+                    for _ in 0..scene.samples {
+                        let u = (ii as f32 + rng.gen::<f32>()) / (scene.width - 1) as f32;
+                        let v = (jj as f32 + rng.gen::<f32>()) / (scene.height - 1) as f32;
                         let ray = camera.get_ray(u, v, &mut rng);
-                        pixel_color += ray_color(&ray, &world, &lights, MAXDEPTH, &mut rng);
+                        pixel_color += ray_color(
+                            &ray,
+                            &scene.hitlist,
+                            &scene.lights,
+                            scene.maxdepth,
+                            &mut rng,
+                        );
                     }
-                    pixel_color /= SAMPLES as f32;
+                    pixel_color /= scene.samples as f32;
                     framebuffer.push(pixel_color);
                 }
                 if ii % 10 == 0 {
@@ -270,18 +178,18 @@ fn main() -> Result<(), image::ImageError> {
         .unwrap();
 
     for v in framebuffer.iter_mut() {
-        *v /= NFRAMES as f32;
+        *v /= scene.nframes as f32;
     }
 
-    let mut frame = image::RgbImage::new(WIDTH, HEIGHT);
+    let mut frame = image::RgbImage::new(scene.width, scene.height);
 
-    for jj in 0..HEIGHT {
-        for ii in 0..WIDTH {
+    for jj in 0..scene.height {
+        for ii in 0..scene.width {
             frame.put_pixel(
                 ii,
-                HEIGHT - jj - 1,
+                scene.height - jj - 1,
                 image::Rgb(
-                    Srgb::from_linear(framebuffer[(ii * HEIGHT + jj) as usize])
+                    Srgb::from_linear(framebuffer[(ii * scene.height + jj) as usize])
                         .into_format()
                         .into(),
                 ),
