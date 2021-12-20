@@ -29,110 +29,78 @@ impl<'b> HitRecord<'b> {
     }
 }
 
-pub trait Hittable: HittableClone + Send + Sync {
-    fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord>;
+// pub trait Hittable: HittableClone + Send + Sync {
+//     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord>;
+// }
+
+pub enum Hittable {
+    Sphere {
+        centre: Vec3,
+        radius: f32,
+        material: Material,
+    },
 }
 
-pub trait HittableClone {
-    fn clone_box(&self) -> Box<dyn Hittable>;
-}
-
-impl<T: 'static> HittableClone for T
-where
-    T: Hittable + Clone,
-{
-    fn clone_box(&self) -> Box<dyn Hittable + 'static> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn Hittable> {
-    fn clone(&self) -> Box<dyn Hittable + 'static> {
-        self.clone_box()
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Sphere {
-    centre: Vec3,
-    radius: f32,
-    material: Material,
-}
-impl Sphere {
-    pub fn new(centre: Vec3, radius: f32, material: Material) -> Self {
-        Sphere {
+impl Hittable {
+    pub fn new_sphere(centre: Vec3, radius: f32, material: Material) -> Hittable {
+        Self::Sphere {
             centre,
             radius,
             material,
         }
     }
-}
-impl Hittable for Sphere {
     fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
-        let oc = ray.origin - self.centre;
-        let a = ray.norm_squared();
-        let half_b = oc.dot(&ray.direction);
-        let c = oc.norm_squared() - self.radius * self.radius;
-        let discriminant = half_b * half_b - a * c;
+        match *self {
+            Hittable::Sphere {
+                centre,
+                radius,
+                ref material,
+            } => {
+                let oc = ray.origin - centre;
+                let a = ray.norm_squared();
+                let half_b = oc.dot(&ray.direction);
+                let c = oc.norm_squared() - radius * radius;
+                let discriminant = half_b * half_b - a * c;
 
-        if discriminant < 0.0 {
-            return None;
-        }
+                if discriminant < 0.0 {
+                    return None;
+                }
 
-        // Find the nearest root that lies in an acceptible range (t_min < t < t_max)
-        let sqrtd = discriminant.sqrt();
-        let mut root = (-half_b - sqrtd) / a;
-        if root < t_min || t_max < root {
-            root = (-half_b + sqrtd) / a;
-            if root < t_min || t_max < root {
-                return None;
+                // Find the nearest root that lies in an acceptible range (t_min < t < t_max)
+                let sqrtd = discriminant.sqrt();
+                let mut root = (-half_b - sqrtd) / a;
+                if root < t_min || t_max < root {
+                    root = (-half_b + sqrtd) / a;
+                    if root < t_min || t_max < root {
+                        return None;
+                    }
+                }
+
+                let t = root;
+                let pos = ray.at(t);
+                let outward_normal = (pos - centre) / radius;
+                Some(HitRecord::new(ray, pos, outward_normal, t, material))
             }
         }
-
-        let t = root;
-        let pos = ray.origin + ray.direction * t;
-        let outward_normal = (pos - self.centre) / self.radius;
-        Some(HitRecord::new(ray, pos, outward_normal, t, &self.material))
     }
 }
 
-type HitListElement = Box<dyn Hittable>;
-
-#[derive(Clone)]
-pub struct HitList(Vec<HitListElement>);
-
-// This is very cool, but we really only need to be able to iterate over and push to HitList. Good
-// trick to remember for future though!
-// use std::ops::{Deref, DerefMut};
-/* impl Deref for HitList {
-    type Target = Vec<Box<dyn Hittable>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-impl DerefMut for HitList {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-} */
+pub struct HitList(Vec<Hittable>);
 
 impl HitList {
     pub fn new() -> Self {
         Self(vec![])
     }
 
-    pub fn push(&mut self, object: HitListElement) {
+    pub fn push(&mut self, object: Hittable) {
         self.0.push(object);
     }
 
-    fn iter(&self) -> Iter<HitListElement> {
+    fn iter(&self) -> Iter<Hittable> {
         self.0.iter()
     }
-}
 
-impl Hittable for HitList {
-    fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
+    pub fn trace(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<HitRecord> {
         let mut closest_t = t_max;
         let mut closest_hitrecord: Option<HitRecord> = None;
 

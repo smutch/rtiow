@@ -92,7 +92,7 @@ fn ray_color(
         return LinSrgb::new(0.0, 0.0, 0.0);
     }
 
-    match world.hit(ray, TMIN, f32::INFINITY) {
+    match world.trace(ray, TMIN, f32::INFINITY) {
         None => {
             let direction = ray.normalize();
             let t = 0.5 * (direction.y + 1.0);
@@ -145,11 +145,11 @@ fn main() -> Result<(), image::ImageError> {
      */
 
     // ground
-    world.push(Box::new(Sphere::new(
+    world.push(Hittable::new_sphere(
         vec3(0.0, -1000., 0.0),
         1000.0,
         Material::new_lambertian(LinSrgb::new(0.5, 0.5, 0.5)),
-    )));
+    ));
 
     let mut rng = rand::thread_rng();
     let distrib = Uniform::new(0f32, 1f32);
@@ -175,11 +175,11 @@ fn main() -> Result<(), image::ImageError> {
                         distrib.sample(&mut rng),
                         distrib.sample(&mut rng),
                     );
-                    world.push(Box::new(Sphere::new(
+                    world.push(Hittable::new_sphere(
                         center,
                         0.2,
                         Material::new_lambertian(albedo),
-                    )));
+                    ));
                 } else if choose_mat < 0.95 {
                     // metal
                     let distrib = Uniform::new(0.5f32, 1f32);
@@ -189,40 +189,40 @@ fn main() -> Result<(), image::ImageError> {
                         distrib.sample(&mut rng),
                     );
                     let fuzz = distrib.sample(&mut rng);
-                    world.push(Box::new(Sphere::new(
+                    world.push(Hittable::new_sphere(
                         center,
                         0.2,
                         Material::new_metal(albedo, fuzz),
-                    )));
+                    ));
                 } else {
                     // glass
-                    world.push(Box::new(Sphere::new(
+                    world.push(Hittable::new_sphere(
                         center,
                         0.2,
                         Material::new_dialectric(1.5),
-                    )));
+                    ));
                 }
             }
         }
     }
 
-    world.push(Box::new(Sphere::new(
+    world.push(Hittable::new_sphere(
         vec3(-4., 1., 0.),
         1.0,
         Material::new_lambertian(LinSrgb::new(0.4, 0.2, 0.1)),
-    )));
+    ));
 
-    world.push(Box::new(Sphere::new(
+    world.push(Hittable::new_sphere(
         vec3(0., 1., 0.),
         1.0,
         Material::new_dialectric(1.5),
-    )));
+    ));
 
-    world.push(Box::new(Sphere::new(
+    world.push(Hittable::new_sphere(
         vec3(4., 1., 0.),
         1.0,
         Material::new_metal(LinSrgb::new(0.7, 0.6, 0.5), 0.0),
-    )));
+    ));
 
     let lights = vec![Light::Point {
         position: vec3(1.0, 5.0, 0.0),
